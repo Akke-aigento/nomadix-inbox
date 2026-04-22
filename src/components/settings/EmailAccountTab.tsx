@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ export default function EmailAccountTab() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -148,6 +149,47 @@ export default function EmailAccountTab() {
       toast.error(err instanceof Error ? err.message : "Test failed");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const syncNow = async () => {
+    if (!account) {
+      toast.error("Save the account first");
+      return;
+    }
+    if (!account.vault_secret_id) {
+      toast.error("Set a password and save before syncing");
+      return;
+    }
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-inbox", {
+        body: { account_id: account.id },
+      });
+      if (error) throw error;
+      const result = data as {
+        fetched?: number;
+        created?: number;
+        skipped?: number;
+        errors?: number;
+        error?: string;
+      };
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        const parts = [
+          `${result.fetched ?? 0} fetched`,
+          `${result.created ?? 0} new`,
+          `${result.skipped ?? 0} duplicates`,
+        ];
+        if ((result.errors ?? 0) > 0) parts.push(`${result.errors} errors`);
+        toast.success(`Sync done — ${parts.join(", ")}`);
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -287,9 +329,21 @@ export default function EmailAccountTab() {
               Verify the IMAP credentials against Migadu.
             </p>
           </div>
-          <Button onClick={test} disabled={testing || !account}>
-            {testing ? "Testing…" : "Test connection"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={test}
+              disabled={testing || syncing || !account}
+            >
+              {testing ? "Testing…" : "Test connection"}
+            </Button>
+            <Button onClick={syncNow} disabled={syncing || testing || !account}>
+              <RefreshCw
+                className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
+              />
+              {syncing ? "Syncing…" : "Sync now"}
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
