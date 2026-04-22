@@ -249,9 +249,11 @@ Deno.serve(async (req) => {
     let analyzed = 0;
     let errors = 0;
     let skipped = 0;
+    let draftsTriggered = 0;
 
-    // Fetch categories per brand once
+    // Fetch categories + brand AI settings per brand once
     const brandCats = new Map<string, any[]>();
+    const brandAiSettings = new Map<string, any>();
 
     for (const msg of messages || []) {
       try {
@@ -275,6 +277,46 @@ Deno.serve(async (req) => {
         const result = await analyzeOne(msg, cats, apiKey);
         await persistAnalysis(supabase, msg, result);
         analyzed++;
+
+        // === AI auto-draft trigger ===
+        if (msg.brand_id) {
+          if (!brandAiSettings.has(msg.brand_id)) {
+            const { data: brandRow } = await supabase
+              .from("brands")
+              .select(
+                "ai_auto_draft_enabled, ai_draft_mode, ai_draft_trigger_labels",
+              )
+              .eq("id", msg.brand_id)
+              .maybeSingle();
+            brandAiSettings.set(msg.brand_id, brandRow || null);
+          }
+          const settings = brandAiSettings.get(msg.brand_id);
+          const shouldDraft = await evaluateDraftTrigger(
+            supabase,
+            settings,
+            msg,
+            result,
+          );
+          if (shouldDraft) {
+            // Fire-and-forget: invoke generate-draft-reply
+            try {
+              await fetch(
+                `${supabaseUrl}/functions/v1/generate-draft-reply`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${serviceKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ message_id: msg.id }),
+                },
+              );
+              draftsTriggered++;
+            } catch (e) {
+              console.error("draft trigger failed for", msg.id, e);
+            }
+          }
+        }
       } catch (e) {
         console.error("analyze-message error for", msg.id, e);
         errors++;
