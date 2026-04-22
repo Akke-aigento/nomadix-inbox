@@ -4,6 +4,7 @@
 import { simpleParser } from "npm:mailparser@3.7.1";
 import { detectBrand } from "./detect-brand.ts";
 import { findOrCreateThread, updateThreadStats } from "./thread-assembly.ts";
+import { applyRoutingRules } from "./apply-rules.ts";
 
 export type ProcessResult =
   | { status: "skipped_duplicate"; message_id: string }
