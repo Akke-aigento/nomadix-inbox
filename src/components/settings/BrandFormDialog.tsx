@@ -225,16 +225,21 @@ export default function BrandFormDialog({
                   placeholder="SellQo"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email_address">Email address</Label>
-                <Input
-                  id="email_address"
-                  type="email"
-                  value={form.email_address}
-                  onChange={(e) => set("email_address", e.target.value)}
-                  placeholder="info@sellqo.app"
-                />
-              </div>
+              {!brand && (
+                <div className="space-y-2">
+                  <Label htmlFor="email_address">Primary email address</Label>
+                  <Input
+                    id="email_address"
+                    type="email"
+                    value={form.email_address}
+                    onChange={(e) => set("email_address", e.target.value)}
+                    placeholder="info@sellqo.app"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You can add more addresses + catch-all after saving.
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="display_name">Display name (From:)</Label>
                 <Input
