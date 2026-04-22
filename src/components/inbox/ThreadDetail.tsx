@@ -47,6 +47,7 @@ interface ComposerState {
   parent: MessageRecord;
   draftId: string | null;
   initialDraft: any | null;
+  aiSeed: { subject: string | null; body_html: string } | null;
 }
 
 export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
