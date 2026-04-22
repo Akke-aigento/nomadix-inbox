@@ -1,9 +1,10 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search } from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { EmptyInbox, NoResults } from "./EmptyStates";
 import { FilterChips } from "./FilterChips";
@@ -20,6 +21,7 @@ interface Props {
   onSelectThread: (id: string) => void;
   onToggleSelectId: (id: string) => void;
   onFocusIndex: (i: number) => void;
+  onOpenSidebar?: () => void;
 }
 
 export function ThreadList({
@@ -33,6 +35,7 @@ export function ThreadList({
   onSelectThread,
   onToggleSelectId,
   onFocusIndex,
+  onOpenSidebar,
 }: Props) {
   const { filters, update, activeChipCount } = useInboxFilters();
   const parentRef = useRef<HTMLDivElement>(null);
