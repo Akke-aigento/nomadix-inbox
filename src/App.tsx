@@ -11,6 +11,7 @@ import AuthPage from "./pages/AuthPage";
 import InboxPage from "./pages/InboxPage";
 import SettingsPage from "./pages/SettingsPage";
 import RulesPage from "./pages/RulesPage";
+import { NomadixSplash } from "@/components/inbox/NomadixSplash";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <NomadixSplash />
       <BrowserRouter>
         <AuthProvider>
           <Routes>
