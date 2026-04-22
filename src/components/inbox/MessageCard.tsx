@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { AttachmentList, type AttachmentRow } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import type { ComposeMode } from "./ReplyComposer";
 
 export interface MessageRecord {
   id: string;
@@ -33,7 +33,6 @@ function initials(name: string | null, email: string) {
 }
 
 function foldQuoted(html: string): string {
-  // Best-effort: hide common quoted-reply blocks
   return html
     .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, (m) => `<details class="quoted"><summary>Show quoted text</summary>${m}</details>`)
     .replace(/(<div[^>]*gmail_quote[\s\S]*?<\/div>)/gi, (m) => `<details class="quoted"><summary>Show quoted text</summary>${m}</details>`);
@@ -45,9 +44,10 @@ interface Props {
   brandName?: string;
   defaultExpanded: boolean;
   isLast: boolean;
+  onCompose?: (mode: ComposeMode, message: MessageRecord) => void;
 }
 
-export function MessageCard({ message, attachments, brandName, defaultExpanded, isLast }: Props) {
+export function MessageCard({ message, attachments, brandName, defaultExpanded, isLast, onCompose }: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const html = useMemo(() => {
@@ -110,15 +110,15 @@ export function MessageCard({ message, attachments, brandName, defaultExpanded, 
             dangerouslySetInnerHTML={{ __html: html }}
           />
           <AttachmentList attachments={attachments} />
-          {isLast && (
+          {isLast && onCompose && (
             <div className="mt-4 flex gap-2 border-t border-border/60 pt-3">
-              <Button size="sm" variant="outline" onClick={() => toast.info("Reply — coming in Phase 3C")}>
+              <Button size="sm" variant="outline" onClick={() => onCompose("reply", message)}>
                 <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply
               </Button>
-              <Button size="sm" variant="outline" onClick={() => toast.info("Reply All — coming in Phase 3C")}>
+              <Button size="sm" variant="outline" onClick={() => onCompose("replyAll", message)}>
                 <ReplyAll className="mr-1.5 h-3.5 w-3.5" /> Reply All
               </Button>
-              <Button size="sm" variant="outline" onClick={() => toast.info("Forward — coming in Phase 3C")}>
+              <Button size="sm" variant="outline" onClick={() => onCompose("forward", message)}>
                 <Forward className="mr-1.5 h-3.5 w-3.5" /> Forward
               </Button>
             </div>

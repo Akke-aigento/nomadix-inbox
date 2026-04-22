@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Trash2, MailOpen, Mail, MoreHorizontal, ChevronLeft } from "lucide-react";
+import { Archive, Trash2, MailOpen, Mail, MoreHorizontal, ChevronLeft, Reply } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { MessageCard, type MessageRecord } from "./MessageCard";
@@ -8,12 +8,20 @@ import { NoThreadSelected } from "./EmptyStates";
 import type { AttachmentRow } from "./AttachmentPreview";
 import { archiveThreads, deleteThreads, setThreadsRead } from "@/lib/inbox-actions";
 import { toast } from "sonner";
+import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 
 interface Props {
   threadId: string | null;
   onClose?: () => void;
   onAdvance?: () => void;
   isMobile?: boolean;
+}
+
+interface ComposerState {
+  mode: ComposeMode;
+  parent: MessageRecord;
+  draftId: string | null;
+  initialDraft: any | null;
 }
 
 export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
@@ -25,7 +33,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       if (!threadId) return null;
       const { data: thread } = await supabase
         .from("threads")
-        .select("id, subject, brand:brands(id, name, color_primary)")
+        .select("id, subject, brand_id, brand:brands(id, name, color_primary)")
         .eq("id", threadId)
         .maybeSingle();
       const { data: messages } = await supabase
@@ -39,9 +47,21 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         .from("attachments")
         .select("id, message_id, filename, mime_type, size_bytes, storage_path, is_inline")
         .in("message_id", (messages || []).map((m) => m.id));
-      return { thread, messages: (messages || []) as MessageRecord[], attachments: (attachments || []) as (AttachmentRow & { message_id: string })[] };
+      const { data: drafts } = await supabase
+        .from("drafts")
+        .select("id, brand_id, in_reply_to_message_id, subject, body_html, to_addresses, cc_addresses, bcc_addresses, updated_at")
+        .in("in_reply_to_message_id", (messages || []).map((m) => m.id))
+        .order("updated_at", { ascending: false });
+      return {
+        thread,
+        messages: (messages || []) as MessageRecord[],
+        attachments: (attachments || []) as (AttachmentRow & { message_id: string })[],
+        drafts: drafts || [],
+      };
     },
   });
+
+  const [composer, setComposer] = useState<ComposerState | null>(null);
 
   // Auto-mark messages as read when opening
   useEffect(() => {
@@ -59,6 +79,11 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       });
   }, [threadId, data?.messages, qc]);
 
+  // Reset composer when switching threads
+  useEffect(() => {
+    setComposer(null);
+  }, [threadId]);
+
   const latestAnalyzed = useMemo(() => {
     const list = data?.messages ?? [];
     for (let i = list.length - 1; i >= 0; i--) {
@@ -67,6 +92,50 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     return null;
   }, [data?.messages]);
   const aiSummary = latestAnalyzed?.ai_summary as string | undefined;
+
+  const lastMessage = data?.messages?.[data.messages.length - 1];
+
+  const openComposer = useCallback(
+    (mode: ComposeMode, parent: MessageRecord) => {
+      const existingDraft = data?.drafts?.find((d) => d.in_reply_to_message_id === parent.id);
+      setComposer({
+        mode,
+        parent,
+        draftId: existingDraft?.id ?? null,
+        initialDraft: existingDraft
+          ? {
+              subject: existingDraft.subject,
+              body_html: existingDraft.body_html,
+              to_addresses: existingDraft.to_addresses,
+              cc_addresses: existingDraft.cc_addresses,
+              bcc_addresses: existingDraft.bcc_addresses,
+            }
+          : null,
+      });
+    },
+    [data?.drafts],
+  );
+
+  // ⌘R / Ctrl+R quick reply on last message
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (composer) return; // already composing
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (e.key === "r" && !e.metaKey && !e.ctrlKey && !e.altKey && lastMessage) {
+        e.preventDefault();
+        openComposer("reply", lastMessage);
+      } else if (e.key === "a" && e.shiftKey && lastMessage) {
+        e.preventDefault();
+        openComposer("replyAll", lastMessage);
+      } else if (e.key === "f" && !e.metaKey && !e.ctrlKey && lastMessage) {
+        e.preventDefault();
+        openComposer("forward", lastMessage);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [composer, lastMessage, openComposer]);
 
   if (!threadId) return <NoThreadSelected />;
   if (isLoading || !data?.thread) {
@@ -90,6 +159,8 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     await setThreadsRead([threadId], !anyUnread ? false : true, qc);
     toast.success(anyUnread ? "Marked read" : "Marked unread");
   };
+
+  const brandId = (data.thread as any).brand_id as string | null;
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -120,6 +191,11 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
             </div>
           )}
         </div>
+        {lastMessage && !composer && (
+          <Button variant="outline" size="sm" className="h-8" onClick={() => openComposer("reply", lastMessage)}>
+            <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleArchive} title="Archive (e)">
           <Archive className="h-4 w-4" />
         </Button>
@@ -174,17 +250,43 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         <div className="space-y-3">
           {data.messages.map((m, i) => {
             const atts = data.attachments.filter((a) => a.message_id === m.id);
+            const draftForMsg = data.drafts.find((d) => d.in_reply_to_message_id === m.id);
             return (
-              <MessageCard
-                key={m.id}
-                message={m}
-                attachments={atts}
-                brandName={(data.thread!.brand as any)?.name}
-                defaultExpanded={i === data.messages.length - 1 || data.messages.length === 1}
-                isLast={i === data.messages.length - 1}
-              />
+              <div key={m.id} className="space-y-3">
+                <MessageCard
+                  message={m}
+                  attachments={atts}
+                  brandName={(data.thread!.brand as any)?.name}
+                  defaultExpanded={i === data.messages.length - 1 || data.messages.length === 1}
+                  isLast={i === data.messages.length - 1}
+                  onCompose={!composer ? openComposer : undefined}
+                />
+                {!composer && draftForMsg && i === data.messages.length - 1 && (
+                  <button
+                    onClick={() => openComposer("reply", m)}
+                    className="ml-1 flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary transition hover:bg-primary/10"
+                  >
+                    <Reply className="h-3 w-3" />
+                    Resume draft · {draftForMsg.subject || "(no subject)"}
+                  </button>
+                )}
+              </div>
             );
           })}
+          {composer && (
+            <div className="pt-2">
+              <ReplyComposer
+                threadId={threadId}
+                brandId={brandId}
+                parentMessage={composer.parent}
+                mode={composer.mode}
+                draftId={composer.draftId}
+                initialDraft={composer.initialDraft}
+                onCancel={() => setComposer(null)}
+                onSent={() => setComposer(null)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
