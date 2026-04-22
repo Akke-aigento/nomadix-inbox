@@ -1,0 +1,131 @@
+/*
+  Nomadix design tokens.
+  HSL only (so Tailwind's hsl(var(--token)) pattern keeps working).
+  Dark is default. Light is a deliberate, warm off-white system.
+*/
+
+:root {
+  /* ── Canvas ─────────────────────────────────────────── */
+  --canvas: 222 18% 5%;          /* #0A0B0E warm near-black */
+  --surface-1: 222 16% 7%;       /* sidebar, cards    */
+  --surface-2: 222 14% 10%;      /* popovers          */
+  --surface-3: 222 14% 14%;      /* modals, palette   */
+  --surface-hover: 222 14% 11%;
+  --surface-active: 222 14% 16%;
+
+  /* ── Borders (neutral, low contrast) ────────────────── */
+  --border-subtle: 220 10% 100% / 0.04;
+  --border-default: 220 10% 100% / 0.08;
+  --border-strong: 220 10% 100% / 0.14;
+
+  /* ── Text ───────────────────────────────────────────── */
+  --text-primary: 0 0% 98%;      /* #FAFAFA */
+  --text-secondary: 222 8% 70%;  /* #A8ABB4 */
+  --text-tertiary: 222 6% 45%;   /* #6B6E78 */
+  --text-disabled: 222 6% 28%;
+
+  /* ── System accents ─────────────────────────────────── */
+  --accent-teal: 174 80% 40%;    /* #14B8A6 */
+  --accent-cyan: 190 92% 53%;    /* #22D3EE */
+  --accent-success: 158 84% 39%;
+  --accent-warning: 38 92% 50%;
+  --accent-danger: 0 84% 60%;
+
+  /* ── Selection ──────────────────────────────────────── */
+  --selection-bg: 174 80% 40% / 0.25;
+  --selection-fg: 0 0% 98%;
+
+  /* ── Per-brand accent (overrideable on any subtree) ─ */
+  --brand-accent: var(--accent-teal);
+
+  /* ── Spacing scale ──────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ── Radii ──────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* ── Elevation (soft) ───────────────────────────────── */
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --elev-2: 0 4px 12px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --elev-3: 0 12px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --elev-4: 0 24px 64px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Light mode ───────────────────────────────────────── */
+:root[data-theme="light"],
+.light {
+  --canvas: 48 33% 97%;          /* #FAFAF8 warm off-white */
+  --surface-1: 0 0% 100%;
+  --surface-2: 50 14% 95%;
+  --surface-3: 48 12% 91%;
+  --surface-hover: 48 18% 94%;
+  --surface-active: 48 15% 88%;
+
+  --border-subtle: 222 10% 0% / 0.05;
+  --border-default: 222 10% 0% / 0.1;
+  --border-strong: 222 10% 0% / 0.18;
+
+  --text-primary: 222 18% 5%;
+  --text-secondary: 222 10% 30%;
+  --text-tertiary: 222 8% 48%;
+  --text-disabled: 222 6% 70%;
+
+  --selection-bg: 174 80% 40% / 0.2;
+  --selection-fg: 222 18% 5%;
+
+  --elev-1: 0 1px 2px rgba(15, 18, 25, 0.06);
+  --elev-2: 0 4px 12px rgba(15, 18, 25, 0.08), 0 1px 2px rgba(15, 18, 25, 0.06);
+  --elev-3: 0 12px 32px rgba(15, 18, 25, 0.12), 0 2px 8px rgba(15, 18, 25, 0.08);
+  --elev-4: 0 24px 64px rgba(15, 18, 25, 0.16), 0 8px 16px rgba(15, 18, 25, 0.1);
+}
+
+/* ── Selection ────────────────────────────────────────── */
+::selection {
+  background: hsl(var(--selection-bg));
+  color: hsl(var(--selection-fg));
+}
+
+/* ── Scrollbars (subtle) ──────────────────────────────── */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-strong));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--text-tertiary));
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* ── Reduced motion ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.15ms !important;
+    scroll-behavior: auto !important;
+  }
+}

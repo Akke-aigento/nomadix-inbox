@@ -32,6 +32,7 @@ import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
 import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
+import { AISummaryCard, AISummaryPending } from "./AISummaryCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -417,40 +418,15 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {aiSummary ? (
-          <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                AI summary
-              </span>
-              {latestAnalyzed?.urgency === "high" && (
-                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
-                  Urgent
-                </span>
-              )}
-              {latestAnalyzed?.needs_reply && (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Needs reply
-                </span>
-              )}
-              {latestAnalyzed?.requires_action && !latestAnalyzed?.needs_reply && (
-                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
-                  Action required
-                </span>
-              )}
-              {latestAnalyzed?.sender_type &&
-                latestAnalyzed.sender_type !== "human" &&
-                latestAnalyzed.sender_type !== "unknown" && (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {latestAnalyzed.sender_type}
-                  </span>
-                )}
-            </div>
-            <div className="text-xs text-foreground/90">{aiSummary}</div>
-          </div>
+          <AISummaryCard
+            summary={aiSummary}
+            urgency={latestAnalyzed?.urgency}
+            needsReply={latestAnalyzed?.needs_reply}
+            requiresAction={latestAnalyzed?.requires_action}
+            senderType={latestAnalyzed?.sender_type}
+          />
         ) : (
-          <div className="mb-3 rounded-lg border border-dashed border-border/50 p-3 text-xs text-muted-foreground">
-            AI summary pending — analysis runs automatically after sync.
-          </div>
+          <AISummaryPending />
         )}
         <div className="space-y-3">
           {data.messages.map((m, i) => {
