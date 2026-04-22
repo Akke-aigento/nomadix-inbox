@@ -177,10 +177,23 @@ export default function InboxPage() {
   const showList = !isMobile || !selectedId;
   const showDetail = !isMobile || !!selectedId;
 
+  // Close mobile sidebar when navigating
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [filters.view, filters.brands.join(","), selectedId]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {!isMobile && (
         <InboxSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((b) => !b)} />
+      )}
+
+      {isMobile && (
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetContent side="left" className="w-64 p-0">
+            <InboxSidebar collapsed={false} onToggle={() => setMobileSidebarOpen(false)} />
+          </SheetContent>
+        </Sheet>
       )}
 
       {!isMobile ? (
@@ -235,6 +248,7 @@ export default function InboxPage() {
               onSelectThread={setSelectedId}
               onToggleSelectId={toggleSelect}
               onFocusIndex={setFocusedIndex}
+              onOpenSidebar={() => setMobileSidebarOpen(true)}
             />
           )}
           {showDetail && (
