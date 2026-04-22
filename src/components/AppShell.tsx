@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Inbox, Settings, LogOut } from "lucide-react";
+import { Inbox, Settings, LogOut, Filter } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
           <nav className="ml-4 flex items-center gap-1">
             {navItem("/inbox", "Inbox", Inbox)}
+            {navItem("/rules", "Rules", Filter)}
             {navItem("/settings", "Settings", Settings)}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">

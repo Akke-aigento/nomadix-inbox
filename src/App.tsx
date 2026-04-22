@@ -10,6 +10,7 @@ import NotFound from "./pages/NotFound.tsx";
 import AuthPage from "./pages/AuthPage";
 import InboxPage from "./pages/InboxPage";
 import SettingsPage from "./pages/SettingsPage";
+import RulesPage from "./pages/RulesPage";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/rules"
+              element={
+                <ProtectedRoute>
+                  <RulesPage />
                 </ProtectedRoute>
               }
             />
