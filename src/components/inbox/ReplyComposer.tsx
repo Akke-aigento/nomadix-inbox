@@ -81,6 +81,7 @@ export function ReplyComposer({
   onSent,
   draftId: initialDraftId = null,
   initialDraft = null,
+  aiSeed = null,
 }: Props) {
   const qc = useQueryClient();
 
