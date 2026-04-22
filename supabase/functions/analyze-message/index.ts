@@ -199,6 +199,48 @@ async function persistAnalysis(
   }
 }
 
+// Decide whether to auto-trigger an AI draft based on brand settings + analysis result.
+async function evaluateDraftTrigger(
+  supabase: any,
+  settings: any,
+  msg: any,
+  result: AnalysisResult,
+): Promise<boolean> {
+  if (!settings) return false;
+  if (!settings.ai_auto_draft_enabled) return false;
+  const mode = settings.ai_draft_mode as string;
+  if (mode === "off") return false;
+
+  if (msg.is_outbound) return false;
+  const senderType = result.sender_type;
+  if (
+    senderType === "newsletter" ||
+    senderType === "transactional" ||
+    senderType === "spam" ||
+    senderType === "automated"
+  ) {
+    return false;
+  }
+
+  if (mode === "all_inbound") return true;
+  if (mode === "customer_only") {
+    return senderType === "human" && result.needs_reply;
+  }
+  if (mode === "labeled") {
+    const triggers = (settings.ai_draft_trigger_labels || []) as string[];
+    if (!triggers.length || !msg.thread_id) return false;
+    const { data: tlabels } = await supabase
+      .from("thread_labels")
+      .select("label:labels(name)")
+      .eq("thread_id", msg.thread_id);
+    const names = new Set(
+      (tlabels || []).map((r: any) => r.label?.name).filter(Boolean),
+    );
+    return triggers.some((t) => names.has(t));
+  }
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
