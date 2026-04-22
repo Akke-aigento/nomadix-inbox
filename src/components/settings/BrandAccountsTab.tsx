@@ -17,10 +17,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,14 +32,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import BrandFormDialog, { type Brand } from "./BrandFormDialog";
+import BrandAccountFormDialog, { type BrandAccount } from "./BrandAccountFormDialog";
 
-export default function BrandsTab() {
-  const [brands, setBrands] = useState<Brand[]>([]);
+interface Props {
+  brandId: string;
+  brandFallbackName: string;
+}
+
+export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) {
+  const [accounts, setAccounts] = useState<BrandAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<Brand | null>(null);
+  const [editing, setEditing] = useState<BrandAccount | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<Brand | null>(null);
+  const [deleting, setDeleting] = useState<BrandAccount | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -48,45 +54,33 @@ export default function BrandsTab() {
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from("brands")
+      .from("brand_accounts")
       .select("*")
+      .eq("brand_id", brandId)
       .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
+      .order("display_name", { ascending: true });
     if (error) toast.error(error.message);
-    setBrands((data ?? []) as unknown as Brand[]);
+    setAccounts((data ?? []) as BrandAccount[]);
     setLoading(false);
   };
 
   useEffect(() => {
     load();
-  }, []);
+  }, [brandId]);
 
-  const toggleActive = async (brand: Brand, value: boolean) => {
-    const { error } = await supabase
-      .from("brands")
-      .update({ is_active: value })
-      .eq("id", brand.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setBrands((bs) => bs.map((b) => (b.id === brand.id ? { ...b, is_active: value } : b)));
-  };
-
-  const onDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
+  const onDragEnd = async (e: DragEndEvent) => {
+    const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const oldIndex = brands.findIndex((b) => b.id === active.id);
-    const newIndex = brands.findIndex((b) => b.id === over.id);
+    const oldIndex = accounts.findIndex((a) => a.id === active.id);
+    const newIndex = accounts.findIndex((a) => a.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
-    const next = arrayMove(brands, oldIndex, newIndex).map((b, i) => ({
-      ...b,
+    const next = arrayMove(accounts, oldIndex, newIndex).map((a, i) => ({
+      ...a,
       sort_order: (i + 1) * 10,
     }));
-    setBrands(next);
-    // Persist all changed sort orders
-    const updates = next.map((b) =>
-      supabase.from("brands").update({ sort_order: b.sort_order }).eq("id", b.id),
+    setAccounts(next);
+    const updates = next.map((a) =>
+      supabase.from("brand_accounts").update({ sort_order: a.sort_order }).eq("id", a.id),
     );
     const results = await Promise.all(updates);
     const firstErr = results.find((r) => r.error)?.error;
@@ -95,57 +89,44 @@ export default function BrandsTab() {
 
   const handleDelete = async () => {
     if (!deleting) return;
-    const { error } = await supabase.from("brands").delete().eq("id", deleting.id);
+    const { error } = await supabase.from("brand_accounts").delete().eq("id", deleting.id);
     if (error) {
       toast.error(error.message);
       return;
     }
-    setBrands((bs) => bs.filter((b) => b.id !== deleting.id));
+    setAccounts((acc) => acc.filter((a) => a.id !== deleting.id));
     setDeleting(null);
-    toast.success("Brand deleted");
+    toast.success("Account removed");
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold">Brands</h2>
-          <p className="text-xs text-muted-foreground">
-            Drag to reorder. Each brand maps to an email address and signature.
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          People who can send mail under this brand. Each has their own signature.
+        </p>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add brand
+          <Plus className="h-4 w-4" /> Add account
         </Button>
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
-        <div className="grid grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
-          <div></div>
-          <div></div>
-          <div>Name</div>
-          <div>Email</div>
-          <div>Active</div>
-          <div className="text-right">Actions</div>
-        </div>
-
         {loading ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
-        ) : brands.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No brands yet.</div>
+        ) : accounts.length === 0 ? (
+          <div className="px-3 py-6 text-sm text-muted-foreground">No accounts yet.</div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext
-              items={brands.map((b) => b.id)}
+              items={accounts.map((a) => a.id)}
               strategy={verticalListSortingStrategy}
             >
-              {brands.map((brand) => (
-                <SortableRow
-                  key={brand.id}
-                  brand={brand}
-                  onToggle={(v) => toggleActive(brand, v)}
-                  onEdit={() => setEditing(brand)}
-                  onDelete={() => setDeleting(brand)}
+              {accounts.map((acc) => (
+                <SortableAccountRow
+                  key={acc.id}
+                  account={acc}
+                  onEdit={() => setEditing(acc)}
+                  onDelete={() => setDeleting(acc)}
                 />
               ))}
             </SortableContext>
@@ -153,10 +134,10 @@ export default function BrandsTab() {
         )}
       </div>
 
-      <BrandFormDialog
+      <BrandAccountFormDialog
         open={creating || !!editing}
-        brand={editing}
-        existingSortOrders={brands.map((b) => b.sort_order)}
+        brandId={brandId}
+        account={editing}
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -166,15 +147,15 @@ export default function BrandsTab() {
           setEditing(null);
           load();
         }}
+        defaultDisplayName={brandFallbackName}
       />
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this brand?</AlertDialogTitle>
+            <AlertDialogTitle>Remove this account?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleting?.name} will be removed. Threads previously linked to it will keep their
-              messages but lose the brand association. This cannot be undone.
+              {deleting?.display_name} will be removed. Existing messages keep their data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -183,7 +164,7 @@ export default function BrandsTab() {
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -192,19 +173,17 @@ export default function BrandsTab() {
   );
 }
 
-function SortableRow({
-  brand,
-  onToggle,
+function SortableAccountRow({
+  account,
   onEdit,
   onDelete,
 }: {
-  brand: Brand;
-  onToggle: (v: boolean) => void;
+  account: BrandAccount;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: brand.id,
+    id: account.id,
   });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -212,11 +191,18 @@ function SortableRow({
     opacity: isDragging ? 0.6 : 1,
   };
 
+  const initials = account.display_name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
+      className="grid grid-cols-[28px_40px_minmax(0,1fr)_auto_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
     >
       <button
         {...attributes}
@@ -226,21 +212,24 @@ function SortableRow({
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <div
-        className="h-4 w-4 rounded-sm border border-border"
-        style={{ backgroundColor: brand.color_primary }}
-        title={brand.color_primary}
-      />
+      <Avatar className="h-8 w-8">
+        {account.avatar_url ? <AvatarImage src={account.avatar_url} alt={account.display_name} /> : null}
+        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+      </Avatar>
       <div className="min-w-0">
-        <div className="truncate font-medium">{brand.name}</div>
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium">{account.display_name}</span>
+          {account.is_default && (
+            <Badge variant="secondary" className="gap-1">
+              <Star className="h-3 w-3" /> default
+            </Badge>
+          )}
+        </div>
         <div className="truncate text-xs text-muted-foreground">
-          {brand.display_name} · {brand.slug}
+          {[account.role_title, account.email_alias].filter(Boolean).join(" · ") || "—"}
         </div>
       </div>
-      <div className="truncate text-muted-foreground">{brand.email_address}</div>
-      <div>
-        <Switch checked={brand.is_active} onCheckedChange={onToggle} />
-      </div>
+      <div />
       <div className="flex items-center justify-end gap-1">
         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />

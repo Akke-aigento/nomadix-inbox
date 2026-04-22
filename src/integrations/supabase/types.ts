@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_drafts: {
+        Row: {
+          brand_account_id: string | null
+          brand_id: string | null
+          draft_body_html: string
+          draft_body_text: string | null
+          draft_subject: string | null
+          generated_at: string
+          id: string
+          message_id: string
+          model_used: string
+          reasoning: string | null
+          status: string
+          tokens_used: number | null
+        }
+        Insert: {
+          brand_account_id?: string | null
+          brand_id?: string | null
+          draft_body_html: string
+          draft_body_text?: string | null
+          draft_subject?: string | null
+          generated_at?: string
+          id?: string
+          message_id: string
+          model_used?: string
+          reasoning?: string | null
+          status?: string
+          tokens_used?: number | null
+        }
+        Update: {
+          brand_account_id?: string | null
+          brand_id?: string | null
+          draft_body_html?: string
+          draft_body_text?: string | null
+          draft_subject?: string | null
+          generated_at?: string
+          id?: string
+          message_id?: string
+          model_used?: string
+          reasoning?: string | null
+          status?: string
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_drafts_brand_account_id_fkey"
+            columns: ["brand_account_id"]
+            isOneToOne: false
+            referencedRelation: "brand_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_drafts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_drafts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attachments: {
         Row: {
           content_id: string | null
@@ -58,10 +125,67 @@ export type Database = {
           },
         ]
       }
+      brand_accounts: {
+        Row: {
+          avatar_url: string | null
+          brand_id: string
+          created_at: string
+          display_name: string
+          email_alias: string | null
+          id: string
+          is_default: boolean
+          role_title: string | null
+          signature_html: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          brand_id: string
+          created_at?: string
+          display_name: string
+          email_alias?: string | null
+          id?: string
+          is_default?: boolean
+          role_title?: string | null
+          signature_html: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          brand_id?: string
+          created_at?: string
+          display_name?: string
+          email_alias?: string | null
+          id?: string
+          is_default?: boolean
+          role_title?: string | null
+          signature_html?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_accounts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
+          ai_auto_draft_enabled: boolean
+          ai_draft_language: string
+          ai_draft_mode: string
+          ai_draft_tone: string
+          ai_draft_trigger_labels: string[]
+          brand_voice: string | null
           color_primary: string
           created_at: string
+          default_signature_html: string | null
           display_name: string
           email_address: string
           id: string
@@ -74,8 +198,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_auto_draft_enabled?: boolean
+          ai_draft_language?: string
+          ai_draft_mode?: string
+          ai_draft_tone?: string
+          ai_draft_trigger_labels?: string[]
+          brand_voice?: string | null
           color_primary?: string
           created_at?: string
+          default_signature_html?: string | null
           display_name: string
           email_address: string
           id?: string
@@ -88,8 +219,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_auto_draft_enabled?: boolean
+          ai_draft_language?: string
+          ai_draft_mode?: string
+          ai_draft_tone?: string
+          ai_draft_trigger_labels?: string[]
+          brand_voice?: string | null
           color_primary?: string
           created_at?: string
+          default_signature_html?: string | null
           display_name?: string
           email_address?: string
           id?: string
@@ -234,12 +372,17 @@ export type Database = {
       }
       messages: {
         Row: {
+          ai_category: string | null
+          ai_category_confidence: number | null
+          ai_summary: string | null
           bcc_addresses: Json
           body_html: string | null
           body_text: string | null
           brand_id: string | null
           cc_addresses: Json
           created_at: string
+          detected_via: string
+          detection_confidence: number | null
           email_account_id: string | null
           from_address: string
           from_name: string | null
@@ -250,6 +393,7 @@ export type Database = {
           is_outbound: boolean
           is_read: boolean
           message_id_header: string | null
+          needs_reply: boolean | null
           raw_headers: Json | null
           received_at: string
           reply_to: string | null
@@ -258,12 +402,17 @@ export type Database = {
           to_addresses: Json
         }
         Insert: {
+          ai_category?: string | null
+          ai_category_confidence?: number | null
+          ai_summary?: string | null
           bcc_addresses?: Json
           body_html?: string | null
           body_text?: string | null
           brand_id?: string | null
           cc_addresses?: Json
           created_at?: string
+          detected_via?: string
+          detection_confidence?: number | null
           email_account_id?: string | null
           from_address: string
           from_name?: string | null
@@ -274,6 +423,7 @@ export type Database = {
           is_outbound?: boolean
           is_read?: boolean
           message_id_header?: string | null
+          needs_reply?: boolean | null
           raw_headers?: Json | null
           received_at: string
           reply_to?: string | null
@@ -282,12 +432,17 @@ export type Database = {
           to_addresses?: Json
         }
         Update: {
+          ai_category?: string | null
+          ai_category_confidence?: number | null
+          ai_summary?: string | null
           bcc_addresses?: Json
           body_html?: string | null
           body_text?: string | null
           brand_id?: string | null
           cc_addresses?: Json
           created_at?: string
+          detected_via?: string
+          detection_confidence?: number | null
           email_account_id?: string | null
           from_address?: string
           from_name?: string | null
@@ -298,6 +453,7 @@ export type Database = {
           is_outbound?: boolean
           is_read?: boolean
           message_id_header?: string | null
+          needs_reply?: boolean | null
           raw_headers?: Json | null
           received_at?: string
           reply_to?: string | null
