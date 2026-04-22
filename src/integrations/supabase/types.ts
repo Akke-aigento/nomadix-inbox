@@ -175,6 +175,53 @@ export type Database = {
           },
         ]
       }
+      brand_categories: {
+        Row: {
+          brand_id: string
+          color: string
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          is_ai_enabled: boolean
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          brand_id: string
+          color?: string
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          is_ai_enabled?: boolean
+          name: string
+          slug: string
+          sort_order?: number
+        }
+        Update: {
+          brand_id?: string
+          color?: string
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          is_ai_enabled?: boolean
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_categories_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           ai_auto_draft_enabled: boolean
@@ -370,6 +417,45 @@ export type Database = {
         }
         Relationships: []
       }
+      message_categories: {
+        Row: {
+          category_id: string
+          confidence: number | null
+          created_at: string
+          detected_via: string
+          message_id: string
+        }
+        Insert: {
+          category_id: string
+          confidence?: number | null
+          created_at?: string
+          detected_via?: string
+          message_id: string
+        }
+        Update: {
+          category_id?: string
+          confidence?: number | null
+          created_at?: string
+          detected_via?: string
+          message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_categories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "brand_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_categories_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           ai_category: string | null
@@ -397,9 +483,12 @@ export type Database = {
           raw_headers: Json | null
           received_at: string
           reply_to: string | null
+          requires_action: boolean
+          sender_type: string | null
           subject: string | null
           thread_id: string | null
           to_addresses: Json
+          urgency: string
         }
         Insert: {
           ai_category?: string | null
@@ -427,9 +516,12 @@ export type Database = {
           raw_headers?: Json | null
           received_at: string
           reply_to?: string | null
+          requires_action?: boolean
+          sender_type?: string | null
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json
+          urgency?: string
         }
         Update: {
           ai_category?: string | null
@@ -457,9 +549,12 @@ export type Database = {
           raw_headers?: Json | null
           received_at?: string
           reply_to?: string | null
+          requires_action?: boolean
+          sender_type?: string | null
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json
+          urgency?: string
         }
         Relationships: [
           {
@@ -481,6 +576,88 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routing_rules: {
+        Row: {
+          action_add_category_id: string | null
+          action_add_label_id: string | null
+          action_archive: boolean
+          action_mark_read: boolean
+          action_set_urgency: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          last_matched_at: string | null
+          match_brand_id: string | null
+          match_from_contains: string | null
+          match_has_header: string | null
+          match_subject_contains: string | null
+          match_to_contains: string | null
+          name: string
+          priority: number
+          times_matched: number
+        }
+        Insert: {
+          action_add_category_id?: string | null
+          action_add_label_id?: string | null
+          action_archive?: boolean
+          action_mark_read?: boolean
+          action_set_urgency?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_matched_at?: string | null
+          match_brand_id?: string | null
+          match_from_contains?: string | null
+          match_has_header?: string | null
+          match_subject_contains?: string | null
+          match_to_contains?: string | null
+          name: string
+          priority?: number
+          times_matched?: number
+        }
+        Update: {
+          action_add_category_id?: string | null
+          action_add_label_id?: string | null
+          action_archive?: boolean
+          action_mark_read?: boolean
+          action_set_urgency?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_matched_at?: string | null
+          match_brand_id?: string | null
+          match_from_contains?: string | null
+          match_has_header?: string | null
+          match_subject_contains?: string | null
+          match_to_contains?: string | null
+          name?: string
+          priority?: number
+          times_matched?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routing_rules_action_add_category_id_fkey"
+            columns: ["action_add_category_id"]
+            isOneToOne: false
+            referencedRelation: "brand_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routing_rules_action_add_label_id_fkey"
+            columns: ["action_add_label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routing_rules_match_brand_id_fkey"
+            columns: ["match_brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
             referencedColumns: ["id"]
           },
         ]
