@@ -836,6 +836,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_email_account_password: {
+        Args: { p_account_id: string }
+        Returns: string
+      }
       get_vault_secret: { Args: { secret_id: string }; Returns: string }
       upsert_email_account_password: {
         Args: { account_id: string; new_password: string }
