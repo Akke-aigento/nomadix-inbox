@@ -166,21 +166,22 @@ export function ReplyComposer({
   const [showBcc, setShowBcc] = useState<boolean>(bcc.length > 0);
 
   const [subject, setSubject] = useState<string>(
-    initialDraft?.subject ?? buildSubject(mode, parentMessage.subject),
+    initialDraft?.subject ?? aiSeed?.subject ?? buildSubject(mode, parentMessage.subject),
   );
 
-  // Body: if existing draft, use that. Otherwise: signature + (forward = quote) + (reply = empty + quote)
+  // Body priority: human draft > AI seed (+sig+quote) > blank (+sig+quote)
   const initialBody = useMemo(() => {
     if (initialDraft?.body_html) return initialDraft.body_html;
     const sig = defaultAccount?.signature_html
       ? `<p></p><p></p>${sanitizeSignature(defaultAccount.signature_html)}`
       : "";
     const quote = quoteOriginal(parentMessage);
+    const seedBody = aiSeed?.body_html ? `<p></p>${aiSeed.body_html}` : "<p></p>";
     if (mode === "forward") {
-      return `<p></p>${sig}<p>---------- Forwarded message ----------</p>${quote}`;
+      return `${seedBody}${sig}<p>---------- Forwarded message ----------</p>${quote}`;
     }
-    return `<p></p>${sig}${quote}`;
-  }, [initialDraft, defaultAccount, parentMessage, mode]);
+    return `${seedBody}${sig}${quote}`;
+  }, [initialDraft, aiSeed, defaultAccount, parentMessage, mode]);
 
   const [bodyHtml, setBodyHtml] = useState<string>(initialBody);
 
