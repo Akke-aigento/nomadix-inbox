@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, Clock, RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,9 @@ const defaults: Omit<EmailAccount, "id" | "vault_secret_id" | "last_sync_at" | "
     username: "",
   };
 
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes safety
+
 export default function EmailAccountTab() {
   const [account, setAccount] = useState<EmailAccount | null>(null);
   const [form, setForm] = useState(defaults);
@@ -46,6 +49,20 @@ export default function EmailAccountTab() {
   const [syncing, setSyncing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const pollTimerRef = useRef<number | null>(null);
+  const pollStartedAtRef = useRef<number>(0);
+
+  const clearPoll = () => {
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => clearPoll();
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -74,11 +91,76 @@ export default function EmailAccountTab() {
     }
     setPassword("");
     setLoading(false);
+    return data as EmailAccount | null;
   };
 
+  // On mount: if there's already a running sync_log for this account, resume polling.
   useEffect(() => {
-    load();
+    let cancelled = false;
+    (async () => {
+      const acc = await load();
+      if (cancelled || !acc) return;
+      const { data: running } = await supabase
+        .from("sync_log")
+        .select("id")
+        .eq("email_account_id", acc.id)
+        .eq("status", "running")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled && running?.id) {
+        setSyncing(true);
+        pollStartedAtRef.current = Date.now();
+        pollSyncLog(running.id);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pollSyncLog = (logId: string) => {
+    const tick = async () => {
+      if (Date.now() - pollStartedAtRef.current > POLL_TIMEOUT_MS) {
+        clearPoll();
+        setSyncing(false);
+        toast.error("Sync timed out — check logs");
+        await load();
+        return;
+      }
+      const { data, error } = await supabase
+        .from("sync_log")
+        .select("status, messages_fetched, error_message")
+        .eq("id", logId)
+        .maybeSingle();
+      if (error) {
+        clearPoll();
+        setSyncing(false);
+        toast.error(error.message);
+        return;
+      }
+      if (!data || data.status === "running") {
+        pollTimerRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
+        return;
+      }
+      // Final state
+      clearPoll();
+      setSyncing(false);
+      const fetched = data.messages_fetched ?? 0;
+      if (data.status === "ok") {
+        toast.success(`Sync done — ${fetched} message${fetched === 1 ? "" : "s"} fetched`);
+      } else if (data.status === "partial") {
+        toast.warning(
+          `Sync partial — ${fetched} fetched${data.error_message ? `: ${data.error_message}` : ""}`,
+        );
+      } else {
+        toast.error(data.error_message ?? "Sync failed");
+      }
+      await load();
+    };
+    pollTimerRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
+  };
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -168,29 +250,18 @@ export default function EmailAccountTab() {
         body: { account_id: account.id },
       });
       if (error) throw error;
-      const result = data as {
-        fetched?: number;
-        created?: number;
-        skipped?: number;
-        errors?: number;
-        error?: string;
-      };
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        const parts = [
-          `${result.fetched ?? 0} fetched`,
-          `${result.created ?? 0} new`,
-          `${result.skipped ?? 0} duplicates`,
-        ];
-        if ((result.errors ?? 0) > 0) parts.push(`${result.errors} errors`);
-        toast.success(`Sync done — ${parts.join(", ")}`);
+      const result = data as { sync_log_id?: string; error?: string };
+      if (result.error || !result.sync_log_id) {
+        setSyncing(false);
+        toast.error(result.error ?? "Failed to start sync");
+        return;
       }
-      await load();
+      toast.info("Sync started — fetching new mail…");
+      pollStartedAtRef.current = Date.now();
+      pollSyncLog(result.sync_log_id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sync failed");
-    } finally {
       setSyncing(false);
+      toast.error(err instanceof Error ? err.message : "Sync failed");
     }
   };
 
@@ -226,6 +297,12 @@ export default function EmailAccountTab() {
       return (
         <Badge className="bg-success text-success-foreground hover:bg-success/90">
           <CheckCircle2 className="h-3 w-3" /> OK
+        </Badge>
+      );
+    if (s === "partial")
+      return (
+        <Badge className="bg-warning text-warning-foreground hover:bg-warning/90">
+          <Clock className="h-3 w-3" /> Partial
         </Badge>
       );
     return (
@@ -402,11 +479,12 @@ export default function EmailAccountTab() {
   );
 }
 
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-md border border-border surface-2 p-3">
+const Stat = forwardRef<HTMLDivElement, { label: string; children: React.ReactNode }>(
+  ({ label, children }, ref) => (
+    <div ref={ref} className="rounded-md border border-border surface-2 p-3">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1">{children}</div>
     </div>
-  );
-}
+  ),
+);
+Stat.displayName = "Stat";
