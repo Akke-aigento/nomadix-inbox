@@ -126,17 +126,19 @@ export default function BrandFormDialog({
     }
     setBusy(true);
     try {
-      const payload: Record<string, unknown> = {
-        slug: form.slug,
-        name: form.name,
-        display_name: form.display_name,
-        color_primary: form.color_primary,
-        logo_url: form.logo_url || null,
-        default_signature_html: form.default_signature_html || null,
-      };
       if (brand) {
         // email_address is now managed via brand_email_addresses + sync trigger
-        const { error } = await supabase.from("brands").update(payload).eq("id", brand.id);
+        const { error } = await supabase
+          .from("brands")
+          .update({
+            slug: form.slug,
+            name: form.name,
+            display_name: form.display_name,
+            color_primary: form.color_primary,
+            logo_url: form.logo_url || null,
+            default_signature_html: form.default_signature_html || null,
+          })
+          .eq("id", brand.id);
         if (error) throw error;
         toast.success("Brand updated");
       } else {
@@ -146,7 +148,12 @@ export default function BrandFormDialog({
         const { data: created, error } = await supabase
           .from("brands")
           .insert({
-            ...payload,
+            slug: form.slug,
+            name: form.name,
+            display_name: form.display_name,
+            color_primary: form.color_primary,
+            logo_url: form.logo_url || null,
+            default_signature_html: form.default_signature_html || null,
             email_address: form.email_address,
             sort_order: maxOrder + 10,
             is_active: true,
