@@ -33,6 +33,14 @@ const App = () => (
               }
             />
             <Route
+              path="/inbox/:threadId"
+              element={
+                <ProtectedRoute>
+                  <InboxPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/settings"
               element={
                 <ProtectedRoute>
