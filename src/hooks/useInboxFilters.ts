@@ -11,6 +11,7 @@ export type ViewKind =
   | "all";
 
 export type StateFilter = "all" | "unread" | "read" | "needs-reply" | "archived";
+export type SortKind = "newest" | "oldest" | "unread" | "most-replies";
 
 export interface InboxFilters {
   view: ViewKind;
@@ -23,6 +24,7 @@ export interface InboxFilters {
   sentTo: string;
   dateRange: "7d" | "30d" | "all";
   search: string;
+  sort: SortKind;
 }
 
 export const DEFAULT_FILTERS: InboxFilters = {
@@ -36,6 +38,7 @@ export const DEFAULT_FILTERS: InboxFilters = {
   sentTo: "",
   dateRange: "all",
   search: "",
+  sort: "newest",
 };
 
 export function useInboxFilters() {
@@ -53,6 +56,7 @@ export function useInboxFilters() {
       sentTo: params.get("to") || "",
       dateRange: (params.get("range") as "7d" | "30d" | "all") || "all",
       search: params.get("q") || "",
+      sort: (params.get("sort") as SortKind) || "newest",
     };
   }, [params]);
 
@@ -70,6 +74,7 @@ export function useInboxFilters() {
       if (next.sentTo) newParams.set("to", next.sentTo);
       if (next.dateRange !== "all") newParams.set("range", next.dateRange);
       if (next.search) newParams.set("q", next.search);
+      if (next.sort !== "newest") newParams.set("sort", next.sort);
       setParams(newParams, { replace: true });
     },
     [filters, setParams],

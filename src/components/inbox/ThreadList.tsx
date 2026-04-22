@@ -1,13 +1,13 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search, ListFilter, MoreHorizontal, Loader2 } from "lucide-react";
+import { Search } from "lucide-react";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { EmptyInbox, NoResults } from "./EmptyStates";
-import { cn } from "@/lib/utils";
+import { FilterChips } from "./FilterChips";
+import { InboxToolbar } from "./InboxToolbar";
 
 interface Props {
   threads: ThreadRow[];
@@ -16,6 +16,7 @@ interface Props {
   focusedIndex: number;
   selectedIds: Set<string>;
   density: Density;
+  setDensity: (d: Density) => void;
   onSelectThread: (id: string) => void;
   onToggleSelectId: (id: string) => void;
   onFocusIndex: (i: number) => void;
@@ -28,6 +29,7 @@ export function ThreadList({
   focusedIndex,
   selectedIds,
   density,
+  setDensity,
   onSelectThread,
   onToggleSelectId,
   onFocusIndex,
@@ -43,7 +45,6 @@ export function ThreadList({
     overscan: 10,
   });
 
-  // Scroll focused row into view
   useEffect(() => {
     if (focusedIndex >= 0 && focusedIndex < threads.length) {
       virtualizer.scrollToIndex(focusedIndex, { align: "auto" });
@@ -54,23 +55,33 @@ export function ThreadList({
   const totalSize = virtualizer.getTotalSize();
 
   const headerLabel = useMemo(() => {
-    if (filters.search) return `Search: "${filters.search}"`;
-    if (filters.brands.length === 1) return filters.brands[0];
+    if (filters.brands.length === 1) {
+      const slug = filters.brands[0];
+      return slug.charAt(0).toUpperCase() + slug.slice(1);
+    }
     switch (filters.view) {
-      case "inbox": return "Inbox";
-      case "needs-reply": return "Needs Reply";
-      case "snoozed": return "Snoozed";
-      case "sent": return "Sent";
-      case "drafts": return "Drafts";
-      case "archive": return "Archive";
-      case "all": return "All Mail";
-      default: return "Inbox";
+      case "inbox":
+        return "Inbox";
+      case "needs-reply":
+        return "Needs Reply";
+      case "snoozed":
+        return "Snoozed";
+      case "sent":
+        return "Sent";
+      case "drafts":
+        return "Drafts";
+      case "archive":
+        return "Archive";
+      case "all":
+        return "All Mail";
+      default:
+        return "Inbox";
     }
   }, [filters]);
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Top bar */}
+      {/* Search bar */}
       <div className="flex h-14 items-center gap-2 border-b border-border px-3">
         <div className="flex flex-1 items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -78,29 +89,29 @@ export function ThreadList({
             data-inbox-search
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
-            placeholder="Search mail…"
+            placeholder="Search mail…   ( / )"
             className="h-8 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
           />
         </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Filters">
-          <ListFilter className="h-4 w-4" />
-          {activeChipCount > 0 && (
-            <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
-          )}
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="More">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
       </div>
 
-      {/* Sub header: title + count */}
+      {/* Title row */}
       <div className="flex h-9 items-center justify-between border-b border-border/60 px-3 text-xs">
-        <span className="font-medium uppercase tracking-wider text-muted-foreground">{headerLabel}</span>
-        <span className="text-muted-foreground">
-          {threads.length} {threads.length === 1 ? "thread" : "threads"}
-          {selectedIds.size > 0 && ` · ${selectedIds.size} selected`}
+        <span className="font-medium uppercase tracking-wider text-muted-foreground">
+          {headerLabel}
         </span>
       </div>
+
+      {/* Active filter chips (only render if any) */}
+      <FilterChips />
+
+      {/* Toolbar: count + filter popover + sort + density */}
+      <InboxToolbar
+        density={density}
+        setDensity={setDensity}
+        total={threads.length}
+        selectedCount={selectedIds.size}
+      />
 
       {/* List */}
       {loading ? (

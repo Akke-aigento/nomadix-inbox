@@ -13,9 +13,10 @@ interface Props {
   threadId: string | null;
   onClose?: () => void;
   onAdvance?: () => void;
+  isMobile?: boolean;
 }
 
-export function ThreadDetail({ threadId, onClose, onAdvance }: Props) {
+export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["thread", threadId],
@@ -92,8 +93,17 @@ export function ThreadDetail({ threadId, onClose, onAdvance }: Props) {
 
   return (
     <div className="flex h-full flex-col bg-background">
+      {isMobile && onClose && (
+        <button
+          onClick={onClose}
+          className="flex h-10 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back to inbox
+        </button>
+      )}
       <header className="flex h-14 flex-none items-center gap-2 border-b border-border px-4">
-        {onClose && (
+        {onClose && !isMobile && (
           <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={onClose}>
             <ChevronLeft className="h-4 w-4" />
           </Button>

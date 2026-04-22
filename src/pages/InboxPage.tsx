@@ -6,6 +6,7 @@ import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { ThreadList } from "@/components/inbox/ThreadList";
 import { ThreadDetail } from "@/components/inbox/ThreadDetail";
 import { ShortcutCheatSheet } from "@/components/inbox/ShortcutCheatSheet";
+import { CommandPalette } from "@/components/inbox/CommandPalette";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { useThreadsQuery, useBrandsQuery } from "@/hooks/useThreadsQuery";
 import { useRealtimeInbox } from "@/hooks/useRealtimeInbox";
@@ -16,6 +17,16 @@ import { Button } from "@/components/ui/button";
 import { Archive, Trash2, MailOpen, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const DENSITY_KEY = "inbox.density";
+
+function loadDensity(): Density {
+  try {
+    const v = localStorage.getItem(DENSITY_KEY);
+    if (v === "compact" || v === "dense" || v === "comfortable") return v;
+  } catch {}
+  return "comfortable";
+}
 
 export default function InboxPage() {
   const navigate = useNavigate();
@@ -33,12 +44,58 @@ export default function InboxPage() {
   const { data: threads = [], isLoading } = useThreadsQuery(filters, brandSlugToId);
   useRealtimeInbox();
 
+  // Sort threads client-side based on filters.sort
+  const sortedThreads = useMemo(() => {
+    const arr = [...threads];
+    switch (filters.sort) {
+      case "oldest":
+        arr.sort((a, b) => {
+          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+          return ta - tb;
+        });
+        break;
+      case "unread":
+        arr.sort((a, b) => {
+          const ua = (a.unread_count || 0) > 0 ? 1 : 0;
+          const ub = (b.unread_count || 0) > 0 ? 1 : 0;
+          if (ua !== ub) return ub - ua;
+          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+          return tb - ta;
+        });
+        break;
+      case "most-replies":
+        arr.sort((a, b) => (b.message_count || 0) - (a.message_count || 0));
+        break;
+      case "newest":
+      default:
+        arr.sort((a, b) => {
+          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+          return tb - ta;
+        });
+    }
+    return arr;
+  }, [threads, filters.sort]);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [density, setDensity] = useState<Density>("comfortable");
+  const [density, setDensityState] = useState<Density>(() => loadDensity());
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCheatSheet, setShowCheatSheet] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  const setDensity = useCallback((d: Density | ((prev: Density) => Density)) => {
+    setDensityState((prev) => {
+      const next = typeof d === "function" ? (d as any)(prev) : d;
+      try {
+        localStorage.setItem(DENSITY_KEY, next);
+      } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
@@ -57,17 +114,10 @@ export default function InboxPage() {
     [navigate],
   );
 
-  // Auto-select first thread on initial load (desktop)
-  useEffect(() => {
-    if (!isMobile && !selectedId && threads.length > 0 && focusedIndex === 0) {
-      // Don't auto-navigate, just keep first focused
-    }
-  }, [threads.length, isMobile, selectedId, focusedIndex]);
-
   // Reset focus when filters change
   useEffect(() => {
     setFocusedIndex(0);
-  }, [filters.view, filters.brands.join(","), filters.search]);
+  }, [filters.view, filters.brands.join(","), filters.search, filters.sort]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -79,7 +129,8 @@ export default function InboxPage() {
   }, []);
 
   useInboxKeyboard({
-    threads,
+    threads: sortedThreads,
+    brands: brands as any[],
     focusedIndex,
     setFocusedIndex,
     selectedId,
@@ -87,12 +138,12 @@ export default function InboxPage() {
     selectedIds,
     setSelectedIds,
     toggleSelect,
-    setDensity,
+    setDensity: (fn) => setDensity(fn),
     setSidebarCollapsed,
     setShowCheatSheet,
+    setPaletteOpen,
   });
 
-  // Bulk action handlers
   const bulkArchive = async () => {
     const ids = Array.from(selectedIds);
     await archiveThreads(ids, qc);
@@ -126,12 +177,13 @@ export default function InboxPage() {
           <ResizablePanel id="list" minSize={20} defaultSize={32}>
             <div className="relative h-full">
               <ThreadList
-                threads={threads}
+                threads={sortedThreads}
                 loading={isLoading}
                 selectedId={selectedId}
                 focusedIndex={focusedIndex}
                 selectedIds={selectedIds}
                 density={density}
+                setDensity={setDensity}
                 onSelectThread={setSelectedId}
                 onToggleSelectId={toggleSelect}
                 onFocusIndex={setFocusedIndex}
@@ -150,7 +202,7 @@ export default function InboxPage() {
             <ThreadDetail
               threadId={selectedId}
               onAdvance={() => {
-                const next = threads[focusedIndex] || null;
+                const next = sortedThreads[focusedIndex] || null;
                 setSelectedId(next ? next.id : null);
               }}
             />
@@ -160,12 +212,13 @@ export default function InboxPage() {
         <div className="flex-1">
           {showList && (
             <ThreadList
-              threads={threads}
+              threads={sortedThreads}
               loading={isLoading}
               selectedId={selectedId}
               focusedIndex={focusedIndex}
               selectedIds={selectedIds}
               density={density}
+              setDensity={setDensity}
               onSelectThread={setSelectedId}
               onToggleSelectId={toggleSelect}
               onFocusIndex={setFocusedIndex}
@@ -174,6 +227,7 @@ export default function InboxPage() {
           {showDetail && (
             <ThreadDetail
               threadId={selectedId}
+              isMobile
               onClose={() => setSelectedId(null)}
               onAdvance={() => setSelectedId(null)}
             />
@@ -182,6 +236,13 @@ export default function InboxPage() {
       )}
 
       <ShortcutCheatSheet open={showCheatSheet} onOpenChange={setShowCheatSheet} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        selectedId={selectedId}
+        selectedIds={selectedIds}
+        setSelectedId={setSelectedId}
+      />
     </div>
   );
 }
