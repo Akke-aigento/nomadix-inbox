@@ -18,6 +18,58 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function finalizeSync(params: {
+  supabase: any;
+  account_id: string;
+  logId: string;
+  fetched: number;
+  highestUid: number;
+  errors: string[];
+  crashed?: string | null;
+}) {
+  const { supabase, account_id, logId, fetched, highestUid, errors, crashed } = params;
+  const allFailed = fetched > 0 && errors.length === fetched;
+  let status: "ok" | "error" = "ok";
+  if (crashed) status = "error";
+  else if (allFailed || (errors.length > 0 && fetched === 0)) status = "error";
+
+  const errorMsg = crashed
+    ? `Crash: ${crashed}`.slice(0, 1000)
+    : errors.length > 0
+    ? errors.join("; ").slice(0, 1000)
+    : null;
+
+  await supabase
+    .from("sync_log")
+    .update({
+      finished_at: new Date().toISOString(),
+      status,
+      messages_fetched: fetched,
+      highest_uid_seen: highestUid,
+      error_message: errorMsg,
+    })
+    .eq("id", logId);
+
+  await supabase
+    .from("email_accounts")
+    .update({
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: crashed
+        ? "error"
+        : errors.length > 0
+        ? allFailed
+          ? "error"
+          : "partial"
+        : "ok",
+      last_sync_error: crashed
+        ? crashed.slice(0, 500)
+        : errors.length > 0
+        ? errors[0].slice(0, 500)
+        : null,
+    })
+    .eq("id", account_id);
+}
+
 async function runSync(params: {
   supabase: any;
   account: any;
@@ -28,85 +80,81 @@ async function runSync(params: {
 }) {
   const { supabase, account, account_id, password, logId, lastUid } = params;
 
-  const client = new ImapFlow({
-    host: account.imap_host,
-    port: account.imap_port,
-    secure: account.imap_use_tls,
-    auth: { user: account.username, pass: String(password) },
-    logger: false,
-  });
-
   let fetched = 0;
   let created = 0;
   let skipped = 0;
   let highestUid = lastUid;
   const errors: string[] = [];
+  let crashed: string | null = null;
 
   try {
-    await client.connect();
-    const lock = await client.getMailboxLock("INBOX");
+    const client = new ImapFlow({
+      host: account.imap_host,
+      port: account.imap_port,
+      secure: account.imap_use_tls,
+      auth: { user: account.username, pass: String(password) },
+      logger: false,
+    });
 
     try {
-      const range = lastUid > 0 ? `${lastUid + 1}:*` : "1:*";
-      for await (const msg of client.fetch(
-        range,
-        { source: true, uid: true, internalDate: true },
-        { uid: true },
-      )) {
-        fetched++;
-        if (msg.uid && msg.uid > highestUid) highestUid = msg.uid;
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
 
-        try {
-          const result = await processMessage(
-            msg.source,
-            msg.uid ?? 0,
-            "INBOX",
-            account_id,
-            supabase,
-          );
-          if (result.status === "created") created++;
-          else if (result.status === "skipped_duplicate") skipped++;
-        } catch (err: any) {
-          console.error(`UID ${msg.uid} failed:`, err);
-          errors.push(`UID ${msg.uid}: ${err?.message ?? String(err)}`);
+      try {
+        const range = lastUid > 0 ? `${lastUid + 1}:*` : "1:*";
+        for await (const msg of client.fetch(
+          range,
+          { source: true, uid: true, internalDate: true },
+          { uid: true },
+        )) {
+          fetched++;
+          if (msg.uid && msg.uid > highestUid) highestUid = msg.uid;
+
+          try {
+            const result = await processMessage(
+              msg.source,
+              msg.uid ?? 0,
+              "INBOX",
+              account_id,
+              supabase,
+            );
+            if (result.status === "created") created++;
+            else if (result.status === "skipped_duplicate") skipped++;
+          } catch (err: any) {
+            console.error(`UID ${msg.uid} failed:`, err);
+            errors.push(`UID ${msg.uid}: ${err?.message ?? String(err)}`);
+          }
         }
+      } finally {
+        try { lock.release(); } catch {}
+        await client.logout().catch(() => {});
       }
-    } finally {
-      lock.release();
-      await client.logout().catch(() => {});
+    } catch (err: any) {
+      console.error("IMAP error:", err);
+      errors.push(`IMAP: ${err?.message ?? String(err)}`);
     }
   } catch (err: any) {
-    console.error("IMAP error:", err);
-    errors.push(`IMAP: ${err?.message ?? String(err)}`);
+    console.error("Fatal sync error:", err);
+    crashed = err?.message ?? String(err);
+  } finally {
+    // ALWAYS finalize the sync_log row, even if everything above blew up.
+    try {
+      await finalizeSync({
+        supabase,
+        account_id,
+        logId,
+        fetched,
+        highestUid,
+        errors,
+        crashed,
+      });
+    } catch (finErr) {
+      console.error("Failed to finalize sync_log:", finErr);
+    }
+    console.log(
+      `Sync done for ${account_id}: fetched=${fetched} created=${created} skipped=${skipped} errors=${errors.length} crashed=${crashed ?? "no"}`,
+    );
   }
-
-  const allFailed = fetched > 0 && errors.length === fetched;
-  const status = allFailed || (errors.length > 0 && fetched === 0) ? "error" : "ok";
-
-  await supabase
-    .from("sync_log")
-    .update({
-      finished_at: new Date().toISOString(),
-      status,
-      messages_fetched: fetched,
-      highest_uid_seen: highestUid,
-      error_message:
-        errors.length > 0 ? errors.join("; ").slice(0, 1000) : null,
-    })
-    .eq("id", logId);
-
-  await supabase
-    .from("email_accounts")
-    .update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: errors.length > 0 ? (allFailed ? "error" : "partial") : "ok",
-      last_sync_error: errors.length > 0 ? errors[0].slice(0, 500) : null,
-    })
-    .eq("id", account_id);
-
-  console.log(
-    `Sync done for ${account_id}: fetched=${fetched} created=${created} skipped=${skipped} errors=${errors.length}`,
-  );
 }
 
 Deno.serve(async (req) => {
@@ -148,6 +196,19 @@ Deno.serve(async (req) => {
     if (account.owner_user_id !== userRes.user.id) {
       return json({ error: "Forbidden" }, 403);
     }
+
+    // Reap zombie 'running' rows (>5 min old) before starting a new one.
+    const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+    await supabase
+      .from("sync_log")
+      .update({
+        status: "error",
+        finished_at: new Date().toISOString(),
+        error_message: "Auto-closed: orphaned running entry exceeded 5 min timeout",
+      })
+      .eq("email_account_id", account_id)
+      .eq("status", "running")
+      .lt("started_at", fiveMinAgo);
 
     // Open a sync_log entry
     const { data: logEntry, error: logErr } = await supabase
