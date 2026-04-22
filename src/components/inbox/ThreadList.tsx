@@ -86,6 +86,17 @@ export function ThreadList({
     <div className="flex h-full flex-col bg-background">
       {/* Search bar */}
       <div className="flex h-14 items-center gap-2 border-b border-border px-3">
+        {onOpenSidebar && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 lg:hidden"
+            onClick={onOpenSidebar}
+            aria-label="Open menu"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        )}
         <div className="flex flex-1 items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
