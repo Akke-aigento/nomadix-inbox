@@ -173,7 +173,7 @@ export default function InboxPage() {
       )}
 
       {!isMobile ? (
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanelGroup orientation="horizontal" className="flex-1">
           <ResizablePanel id="list" minSize={20} defaultSize={32}>
             <div className="relative h-full">
               <ThreadList
