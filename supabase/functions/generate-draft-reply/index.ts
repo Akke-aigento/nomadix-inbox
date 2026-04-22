@@ -311,8 +311,7 @@ Now draft the reply.`;
 
     const tokensUsed =
       (json.usage?.total_tokens as number | undefined) ??
-      (json.usage?.prompt_tokens ?? 0) + (json.usage?.completion_tokens ?? 0) ||
-      null;
+      (((json.usage?.prompt_tokens ?? 0) + (json.usage?.completion_tokens ?? 0)) || null);
 
     // Upsert ai_draft (one per message)
     const { data: saved, error: saveErr } = await supabase
