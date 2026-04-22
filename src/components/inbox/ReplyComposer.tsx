@@ -42,6 +42,11 @@ interface Props {
     cc_addresses: any;
     bcc_addresses: any;
   } | null;
+  /**
+   * AI-generated seed (no signature, no quote). When provided and no human draft
+   * exists, composer hydrates: aiSeed.body_html + signature + quote.
+   */
+  aiSeed?: { subject: string | null; body_html: string } | null;
 }
 
 function addressesToList(input: any): string[] {
