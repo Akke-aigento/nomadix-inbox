@@ -9,6 +9,8 @@ export interface ThreadRow {
   last_message_at: string | null;
   is_archived: boolean;
   is_starred: boolean;
+  is_muted: boolean;
+  snoozed_until: string | null;
   has_attachments: boolean;
   unread_count: number;
   message_count: number;
@@ -37,13 +39,15 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
   return useQuery({
     queryKey: ["threads", filters],
     queryFn: async () => {
-      // Build base query
+      const nowIso = new Date().toISOString();
+
       let query = supabase
         .from("threads")
         .select(
           `
           id, subject, preview, last_message_at, is_archived, is_starred,
-          has_attachments, unread_count, message_count, brand_id, participants,
+          is_muted, snoozed_until, has_attachments, unread_count, message_count,
+          brand_id, participants,
           brand:brands(id, name, slug, color_primary)
           `,
         )
@@ -52,12 +56,21 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
 
       // View-based scoping
       if (filters.view === "inbox" || filters.view === "needs-reply") {
-        query = query.eq("is_archived", false);
+        // Active inbox: not archived, not muted, not currently snoozed
+        query = query
+          .eq("is_archived", false)
+          .eq("is_muted", false)
+          .or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`);
       } else if (filters.view === "archive") {
         query = query.eq("is_archived", true);
+      } else if (filters.view === "snoozed") {
+        // Only currently snoozed
+        query = query.gt("snoozed_until", nowIso).eq("is_archived", false);
+      } else if (filters.view === "muted") {
+        query = query.eq("is_muted", true).eq("is_archived", false);
       }
 
-      // Brand filter (slugs → ids)
+      // Brand filter
       const brandIds = filters.brands.map((s) => brandSlugToId[s]).filter(Boolean);
       if (brandIds.length) query = query.in("brand_id", brandIds);
 
@@ -79,7 +92,6 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
       if (error) throw error;
       if (!threads?.length) return [] as ThreadRow[];
 
-      // Fetch latest message per thread (for preview, urgency, needs_reply, matched_email)
       const threadIds = threads.map((t) => t.id);
       const { data: messages } = await supabase
         .from("messages")
@@ -99,7 +111,6 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
         latest_message: latestByThread.get(t.id) || null,
       }));
 
-      // Apply post-filters that need the latest message
       if (filters.view === "needs-reply" || filters.state === "needs-reply") {
         rows = rows.filter((r) => r.latest_message?.needs_reply === true);
       }
@@ -115,7 +126,26 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
         rows = rows.filter((r) => r.latest_message?.matched_email_address?.toLowerCase().includes(q));
       }
 
-      // Search via FTS server-side if we have a query
+      // Label filter (intersection: thread must have ALL selected labels)
+      if (filters.labels?.length) {
+        const { data: labelLinks } = await supabase
+          .from("thread_labels")
+          .select("thread_id, label_id")
+          .in("thread_id", threadIds)
+          .in("label_id", filters.labels);
+        const matchByThread = new Map<string, Set<string>>();
+        for (const link of labelLinks || []) {
+          const tid = link.thread_id as string;
+          if (!matchByThread.has(tid)) matchByThread.set(tid, new Set());
+          matchByThread.get(tid)!.add(link.label_id as string);
+        }
+        rows = rows.filter((r) => {
+          const set = matchByThread.get(r.id);
+          if (!set) return false;
+          return filters.labels!.every((lid) => set.has(lid));
+        });
+      }
+
       if (filters.search.trim()) {
         const term = filters.search.trim();
         const { data: hits } = await supabase
@@ -158,10 +188,13 @@ export function useSidebarCounts() {
   return useQuery({
     queryKey: ["sidebar-counts"],
     queryFn: async () => {
+      const nowIso = new Date().toISOString();
       const { data: threads } = await supabase
         .from("threads")
-        .select("brand_id, unread_count, is_archived")
-        .eq("is_archived", false);
+        .select("brand_id, unread_count, snoozed_until, is_muted")
+        .eq("is_archived", false)
+        .eq("is_muted", false)
+        .or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`);
       const counts: Record<string, number> = {};
       let total = 0;
       for (const t of threads || []) {
@@ -170,7 +203,18 @@ export function useSidebarCounts() {
           if (t.brand_id) counts[t.brand_id] = (counts[t.brand_id] || 0) + 1;
         }
       }
-      return { perBrand: counts, totalUnread: total };
+
+      const { count: snoozedCount } = await supabase
+        .from("threads")
+        .select("id", { count: "exact", head: true })
+        .gt("snoozed_until", nowIso)
+        .eq("is_archived", false);
+
+      return {
+        perBrand: counts,
+        totalUnread: total,
+        snoozed: snoozedCount || 0,
+      };
     },
     refetchInterval: 30000,
   });

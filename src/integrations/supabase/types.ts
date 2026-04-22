@@ -832,12 +832,14 @@ export type Database = {
           has_attachments: boolean
           id: string
           is_archived: boolean
+          is_muted: boolean
           is_starred: boolean
           last_message_at: string | null
           message_count: number
           owner_user_id: string
           participants: Json
           preview: string | null
+          snoozed_until: string | null
           subject: string | null
           unread_count: number
           updated_at: string
@@ -848,12 +850,14 @@ export type Database = {
           has_attachments?: boolean
           id?: string
           is_archived?: boolean
+          is_muted?: boolean
           is_starred?: boolean
           last_message_at?: string | null
           message_count?: number
           owner_user_id?: string
           participants?: Json
           preview?: string | null
+          snoozed_until?: string | null
           subject?: string | null
           unread_count?: number
           updated_at?: string
@@ -864,12 +868,14 @@ export type Database = {
           has_attachments?: boolean
           id?: string
           is_archived?: boolean
+          is_muted?: boolean
           is_starred?: boolean
           last_message_at?: string | null
           message_count?: number
           owner_user_id?: string
           participants?: Json
           preview?: string | null
+          snoozed_until?: string | null
           subject?: string | null
           unread_count?: number
           updated_at?: string

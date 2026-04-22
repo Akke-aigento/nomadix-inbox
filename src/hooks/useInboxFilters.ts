@@ -5,6 +5,7 @@ export type ViewKind =
   | "inbox"
   | "needs-reply"
   | "snoozed"
+  | "muted"
   | "sent"
   | "drafts"
   | "archive"
@@ -17,6 +18,7 @@ export interface InboxFilters {
   view: ViewKind;
   brands: string[]; // brand slugs
   categories: string[]; // category ids
+  labels: string[]; // label ids
   state: StateFilter;
   hasAttachments: boolean;
   urgency: "any" | "high";
@@ -31,6 +33,7 @@ export const DEFAULT_FILTERS: InboxFilters = {
   view: "inbox",
   brands: [],
   categories: [],
+  labels: [],
   state: "all",
   hasAttachments: false,
   urgency: "any",
@@ -49,6 +52,7 @@ export function useInboxFilters() {
       view: (params.get("view") as ViewKind) || "inbox",
       brands: params.get("brand")?.split(",").filter(Boolean) || [],
       categories: params.get("category")?.split(",").filter(Boolean) || [],
+      labels: params.get("label")?.split(",").filter(Boolean) || [],
       state: (params.get("state") as StateFilter) || "all",
       hasAttachments: params.get("attach") === "1",
       urgency: (params.get("urgency") as "any" | "high") || "any",
@@ -67,6 +71,7 @@ export function useInboxFilters() {
       if (next.view !== "inbox") newParams.set("view", next.view);
       if (next.brands.length) newParams.set("brand", next.brands.join(","));
       if (next.categories.length) newParams.set("category", next.categories.join(","));
+      if (next.labels.length) newParams.set("label", next.labels.join(","));
       if (next.state !== "all") newParams.set("state", next.state);
       if (next.hasAttachments) newParams.set("attach", "1");
       if (next.urgency !== "any") newParams.set("urgency", next.urgency);
@@ -88,6 +93,7 @@ export function useInboxFilters() {
     let n = 0;
     if (filters.brands.length) n++;
     if (filters.categories.length) n++;
+    if (filters.labels.length) n++;
     if (filters.state !== "all") n++;
     if (filters.hasAttachments) n++;
     if (filters.urgency !== "any") n++;
