@@ -20,6 +20,7 @@ import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { brandAccentStyle, toHslTriplet } from "@/lib/theme";
 
 const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
   { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
@@ -83,24 +84,33 @@ export function InboxSidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-border bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] transition-[width]",
-        collapsed ? "w-14" : "w-60",
+        "flex h-full flex-col border-r border-subtle bg-surface-1 text-text-secondary transition-[width] duration-200",
+        collapsed ? "w-[64px]" : "w-[252px]",
       )}
     >
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-border px-3">
+      <div className="flex h-14 items-center justify-between border-b border-subtle px-3">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-              <Inbox className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-semibold tracking-tight">Nomadix</span>
+          <div className="flex items-baseline gap-2 pl-1">
+            <span
+              className="font-display italic text-text-primary"
+              style={{
+                fontSize: "1.25rem",
+                fontVariationSettings: '"opsz" 96, "wght" 500',
+                letterSpacing: "-0.03em",
+              }}
+            >
+              Nomadix
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-tertiary">
+              Inbox
+            </span>
           </div>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-7 w-7 text-text-tertiary hover:bg-surface-hover hover:text-text-primary"
           onClick={onToggle}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -109,7 +119,7 @@ export function InboxSidebar({
       </div>
 
       {/* Views */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className="flex-1 overflow-y-auto px-2 py-4">
         <Section title="Views" collapsed={collapsed}>
           {VIEWS.map((v) => {
             const Icon = v.icon;
@@ -126,11 +136,11 @@ export function InboxSidebar({
                 active={active}
                 collapsed={collapsed}
                 onClick={() => setView(v.key)}
-                icon={<Icon className="h-4 w-4" />}
+                icon={<Icon className="h-4 w-4" strokeWidth={1.75} />}
                 label={v.label}
                 shortcut={v.shortcut}
                 badge={badge && badge > 0 ? badge : undefined}
-                accentHsl="174 80% 40%"
+                useBrandAccent={false}
               />
             );
           })}
@@ -141,6 +151,7 @@ export function InboxSidebar({
             {brands.map((b: any) => {
               const active = isBrandActive(b.slug);
               const badge = counts?.perBrand?.[b.id] ?? 0;
+              const accentStyle = brandAccentStyle(b.color_primary);
               return (
                 <SidebarItem
                   key={b.id}
@@ -149,13 +160,18 @@ export function InboxSidebar({
                   onClick={() => setBrand(b.slug)}
                   icon={
                     <span
-                      className="block h-2.5 w-2.5 rounded-full"
-                      style={{ background: b.color_primary }}
+                      className="block h-2 w-2 rounded-full"
+                      style={{
+                        background: toHslTriplet(b.color_primary)
+                          ? `hsl(${toHslTriplet(b.color_primary)})`
+                          : b.color_primary,
+                      }}
                     />
                   }
                   label={b.name}
                   badge={badge > 0 ? badge : undefined}
-                  accentColor={b.color_primary}
+                  useBrandAccent
+                  styleOverride={accentStyle}
                 />
               );
             })}
@@ -163,8 +179,8 @@ export function InboxSidebar({
         )}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border p-2">
+      {/* Footer — sync status with bar */}
+      <div className="border-t border-subtle p-2">
         <button
           onClick={async () => {
             setSyncing(true);
@@ -178,13 +194,16 @@ export function InboxSidebar({
             }
           }}
           className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))]",
+            "group relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 type-ui-xs text-text-tertiary hover:bg-surface-hover hover:text-text-secondary",
             collapsed && "justify-center",
           )}
         >
-          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+          <RefreshCw
+            className={cn("h-3.5 w-3.5", syncing && "animate-spin")}
+            strokeWidth={1.75}
+          />
           {!collapsed && (
-            <span className="truncate">
+            <span className="truncate font-mono text-[11px]">
               {syncing
                 ? "Syncing…"
                 : lastSync
@@ -192,15 +211,26 @@ export function InboxSidebar({
                 : "Not synced yet"}
             </span>
           )}
+          {/* sync progress bar */}
+          {!collapsed && (
+            <span
+              className={cn(
+                "absolute bottom-0 left-0 h-px bg-brand transition-all",
+                syncing
+                  ? "w-full opacity-100 [animation:_shimmer_1.4s_linear_infinite]"
+                  : "w-0 opacity-30 group-hover:w-full group-hover:opacity-60",
+              )}
+            />
+          )}
         </button>
         <button
           onClick={() => navigate("/settings")}
           className={cn(
-            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))]",
+            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 type-ui-xs text-text-tertiary hover:bg-surface-hover hover:text-text-secondary",
             collapsed && "justify-center",
           )}
         >
-          <SettingsIcon className="h-3.5 w-3.5" />
+          <SettingsIcon className="h-3.5 w-3.5" strokeWidth={1.75} />
           {!collapsed && <span>Settings</span>}
         </button>
       </div>
@@ -218,9 +248,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-4">
+    <div className="mb-5">
       {!collapsed && (
-        <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+        <div className="mb-2 px-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-text-tertiary">
           {title}
         </div>
       )}
@@ -237,8 +267,8 @@ function SidebarItem({
   label,
   shortcut,
   badge,
-  accentColor,
-  accentHsl,
+  useBrandAccent,
+  styleOverride,
 }: {
   active: boolean;
   collapsed: boolean;
@@ -247,40 +277,66 @@ function SidebarItem({
   label: string;
   shortcut?: string;
   badge?: number;
-  accentColor?: string;
-  accentHsl?: string;
+  useBrandAccent?: boolean;
+  styleOverride?: React.CSSProperties;
 }) {
   return (
     <button
       onClick={onClick}
       title={collapsed ? label : undefined}
+      style={styleOverride}
       className={cn(
-        "group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-        "hover:bg-[hsl(var(--sidebar-accent))]",
-        active && "bg-[hsl(var(--sidebar-accent))] text-foreground",
+        "group relative flex h-9 w-full items-center gap-2.5 overflow-hidden rounded-md px-2 type-ui-sm transition-colors",
+        "hover:bg-surface-hover hover:text-text-primary",
+        active && "bg-surface-active text-text-primary",
         collapsed && "justify-center",
       )}
-      style={
-        active && accentColor
-          ? { boxShadow: `inset 2px 0 0 0 ${accentColor}` }
-          : active && accentHsl
-          ? { boxShadow: `inset 2px 0 0 0 hsl(${accentHsl})` }
-          : undefined
-      }
     >
-      <span className="flex h-4 w-4 items-center justify-center text-muted-foreground group-hover:text-foreground">
+      {/* active accent bar */}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-r"
+          style={{ background: useBrandAccent ? "hsl(var(--brand-accent))" : "hsl(var(--accent-teal))" }}
+        />
+      )}
+      {/* subtle teal/brand tint when active */}
+      {active && (
+        <span
+          aria-hidden
+          className="absolute inset-0 opacity-100"
+          style={{
+            background: useBrandAccent
+              ? "hsl(var(--brand-accent) / 0.06)"
+              : "hsl(var(--accent-teal) / 0.06)",
+          }}
+        />
+      )}
+      <span
+        className={cn(
+          "relative z-10 flex h-4 w-4 items-center justify-center",
+          active ? "text-text-primary" : "text-text-tertiary group-hover:text-text-secondary",
+        )}
+      >
         {icon}
       </span>
       {!collapsed && (
         <>
-          <span className="flex-1 truncate text-left">{label}</span>
+          <span className="relative z-10 flex-1 truncate text-left">{label}</span>
           {badge !== undefined && (
-            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+            <span
+              className="relative z-10 rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-medium tabular-nums"
+              style={{
+                color: useBrandAccent ? "hsl(var(--brand-accent))" : "hsl(var(--text-secondary))",
+              }}
+            >
               {badge}
             </span>
           )}
-          {shortcut && !badge && (
-            <span className="font-mono text-[10px] text-muted-foreground/50">{shortcut}</span>
+          {shortcut && badge === undefined && (
+            <span className="relative z-10 font-mono text-[10px] text-text-disabled">
+              {shortcut}
+            </span>
           )}
         </>
       )}
