@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ export default function EmailAccountTab() {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -193,6 +194,31 @@ export default function EmailAccountTab() {
     }
   };
 
+  const analyzeBacklog = async () => {
+    setAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-message", {
+        body: { limit: 50 },
+      });
+      if (error) throw error;
+      const result = data as { analyzed?: number; errors?: number; skipped?: number; total?: number; error?: string };
+      if (result.error) {
+        toast.error(result.error);
+      } else if (!result.total) {
+        toast.success("Nothing to analyze — all messages have summaries");
+      } else {
+        const parts = [`${result.analyzed ?? 0} analyzed`];
+        if ((result.skipped ?? 0) > 0) parts.push(`${result.skipped} skipped`);
+        if ((result.errors ?? 0) > 0) parts.push(`${result.errors} errors`);
+        toast.success(`AI analysis — ${parts.join(", ")}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const statusBadge = () => {
     const s = account?.last_sync_status;
     if (!s) return <Badge variant="secondary">Never tested</Badge>;
@@ -333,11 +359,20 @@ export default function EmailAccountTab() {
             <Button
               variant="outline"
               onClick={test}
-              disabled={testing || syncing || !account}
+              disabled={testing || syncing || analyzing || !account}
             >
               {testing ? "Testing…" : "Test connection"}
             </Button>
-            <Button onClick={syncNow} disabled={syncing || testing || !account}>
+            <Button
+              variant="outline"
+              onClick={analyzeBacklog}
+              disabled={analyzing || syncing || testing}
+              title="Run AI analysis on messages without a summary"
+            >
+              <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
+              {analyzing ? "Analyzing…" : "Analyze backlog"}
+            </Button>
+            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account}>
               <RefreshCw
                 className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
               />
