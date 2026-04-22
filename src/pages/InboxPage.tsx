@@ -11,10 +11,13 @@ import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { useThreadsQuery, useBrandsQuery } from "@/hooks/useThreadsQuery";
 import { useRealtimeInbox } from "@/hooks/useRealtimeInbox";
 import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
-import { archiveThreads, deleteThreads, setThreadsRead } from "@/lib/inbox-actions";
+import { archiveThreads, deleteThreads, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { Button } from "@/components/ui/button";
-import { Archive, Trash2, MailOpen, X } from "lucide-react";
+import { Archive, Trash2, MailOpen, X, BellOff } from "lucide-react";
+import { SnoozePicker } from "@/components/inbox/SnoozePicker";
+import { LabelPicker } from "@/components/inbox/LabelPicker";
+import { Clock, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -162,6 +165,12 @@ export default function InboxPage() {
     toast.success(`Marked ${ids.length} read`);
     setSelectedIds(new Set());
   };
+  const bulkMute = async () => {
+    const ids = Array.from(selectedIds);
+    await setThreadsMuted(ids, true, qc);
+    toast.success(`Muted ${ids.length}`);
+    setSelectedIds(new Set());
+  };
 
   const showList = !isMobile || !selectedId;
   const showDetail = !isMobile || !!selectedId;
@@ -190,9 +199,11 @@ export default function InboxPage() {
               />
               <BulkBar
                 count={selectedIds.size}
+                selectedIds={Array.from(selectedIds)}
                 onArchive={bulkArchive}
                 onDelete={bulkDelete}
                 onMarkRead={bulkMarkRead}
+                onMute={bulkMute}
                 onClear={() => setSelectedIds(new Set())}
               />
             </div>
@@ -249,15 +260,19 @@ export default function InboxPage() {
 
 function BulkBar({
   count,
+  selectedIds,
   onArchive,
   onDelete,
   onMarkRead,
+  onMute,
   onClear,
 }: {
   count: number;
+  selectedIds: string[];
   onArchive: () => void;
   onDelete: () => void;
   onMarkRead: () => void;
+  onMute: () => void;
   onClear: () => void;
 }) {
   return (
@@ -272,6 +287,26 @@ function BulkBar({
         <div className="mx-1 h-4 w-px bg-border" />
         <Button variant="ghost" size="sm" className="h-7" onClick={onArchive}>
           <Archive className="mr-1 h-3.5 w-3.5" /> Archive
+        </Button>
+        <SnoozePicker
+          threadIds={selectedIds}
+          onSnoozed={onClear}
+          trigger={
+            <Button variant="ghost" size="sm" className="h-7">
+              <Clock className="mr-1 h-3.5 w-3.5" /> Snooze
+            </Button>
+          }
+        />
+        <LabelPicker
+          threadIds={selectedIds}
+          trigger={
+            <Button variant="ghost" size="sm" className="h-7">
+              <Tag className="mr-1 h-3.5 w-3.5" /> Label
+            </Button>
+          }
+        />
+        <Button variant="ghost" size="sm" className="h-7" onClick={onMute}>
+          <BellOff className="mr-1 h-3.5 w-3.5" /> Mute
         </Button>
         <Button variant="ghost" size="sm" className="h-7" onClick={onMarkRead}>
           <MailOpen className="mr-1 h-3.5 w-3.5" /> Mark read

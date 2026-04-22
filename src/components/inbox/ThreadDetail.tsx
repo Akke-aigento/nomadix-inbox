@@ -355,13 +355,28 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         </Button>
       </header>
 
-      {/* Hidden trigger to control SnoozePicker via keyboard */}
+      {/* Keyboard-controlled snooze popover (anchored to header clock icon area) */}
       {snoozeOpen && (
-        <SnoozePickerInline
-          threadId={threadId}
-          onClose={() => setSnoozeOpen(false)}
-          onSnoozed={onAdvance}
-        />
+        <div className="pointer-events-none fixed inset-0 z-30">
+          <div className="pointer-events-auto absolute right-4 top-14">
+            <SnoozePicker
+              threadIds={[threadId]}
+              onSnoozed={() => {
+                setSnoozeOpen(false);
+                onAdvance?.();
+              }}
+              trigger={
+                <button
+                  ref={(el) => {
+                    if (el) queueMicrotask(() => el.click());
+                  }}
+                  className="h-1 w-1 opacity-0"
+                  aria-hidden
+                />
+              }
+            />
+          </div>
+        </div>
       )}
 
       {isSnoozedNow && (
