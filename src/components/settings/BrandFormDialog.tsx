@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import BrandAccountsTab from "./BrandAccountsTab";
 import BrandAISettingsTab from "./BrandAISettingsTab";
 import BrandCategoriesTab from "./BrandCategoriesTab";
+import { sanitizeSignature } from "@/lib/sanitize";
 
 export interface Brand {
   id: string;
@@ -280,7 +281,7 @@ export default function BrandFormDialog({
                 {form.default_signature_html ? (
                   <div
                     className="prose prose-sm prose-invert max-w-none text-sm"
-                    dangerouslySetInnerHTML={{ __html: form.default_signature_html }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeSignature(form.default_signature_html) }}
                   />
                 ) : (
                   <div className="text-sm text-muted-foreground">No signature yet.</div>

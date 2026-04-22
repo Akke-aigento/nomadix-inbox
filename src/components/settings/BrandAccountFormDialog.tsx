@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { sanitizeSignature } from "@/lib/sanitize";
 
 export interface BrandAccount {
   id: string;
@@ -236,7 +237,7 @@ export default function BrandAccountFormDialog({
               {form.signature_html ? (
                 <div
                   className="prose prose-sm prose-invert max-w-none text-sm"
-                  dangerouslySetInnerHTML={{ __html: form.signature_html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeSignature(form.signature_html) }}
                 />
               ) : (
                 <div className="text-sm text-muted-foreground">No signature yet.</div>
