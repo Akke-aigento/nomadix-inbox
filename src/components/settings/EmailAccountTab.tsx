@@ -359,11 +359,20 @@ export default function EmailAccountTab() {
             <Button
               variant="outline"
               onClick={test}
-              disabled={testing || syncing || !account}
+              disabled={testing || syncing || analyzing || !account}
             >
               {testing ? "Testing…" : "Test connection"}
             </Button>
-            <Button onClick={syncNow} disabled={syncing || testing || !account}>
+            <Button
+              variant="outline"
+              onClick={analyzeBacklog}
+              disabled={analyzing || syncing || testing}
+              title="Run AI analysis on messages without a summary"
+            >
+              <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
+              {analyzing ? "Analyzing…" : "Analyze backlog"}
+            </Button>
+            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account}>
               <RefreshCw
                 className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
               />
