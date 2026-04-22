@@ -15,6 +15,7 @@ import { RecipientInput } from "./RecipientInput";
 import { sanitizeSignature } from "@/lib/sanitize";
 import { toast } from "sonner";
 import type { MessageRecord } from "./MessageCard";
+import { triggerSendSweep } from "@/components/SendSweep";
 
 export type ComposeMode = "reply" | "replyAll" | "forward";
 
@@ -293,7 +294,8 @@ export function ReplyComposer({
       toast.error((data as any)?.error || error?.message || "Send failed");
       return;
     }
-    toast.success("Message sent");
+    triggerSendSweep();
+    toast.success("Sent.", { duration: 1800 });
     qc.invalidateQueries({ queryKey: ["thread", threadId] });
     qc.invalidateQueries({ queryKey: ["threads"] });
     onSent();
