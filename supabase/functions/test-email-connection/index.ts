@@ -38,6 +38,10 @@ Deno.serve(async (req) => {
     if (claimsErr || !claims?.claims) {
       return json({ ok: false, error: "Unauthorized" }, 401);
     }
+    const userId = claims.claims.sub as string | undefined;
+    if (!userId) {
+      return json({ ok: false, error: "Unauthorized" }, 401);
+    }
 
     const body = (await req.json().catch(() => ({}))) as Body;
     if (!body.account_id || typeof body.account_id !== "string") {
@@ -50,13 +54,16 @@ Deno.serve(async (req) => {
     const { data: account, error: accErr } = await admin
       .from("email_accounts")
       .select(
-        "id, imap_host, imap_port, imap_use_tls, username, vault_secret_id",
+        "id, imap_host, imap_port, imap_use_tls, username, vault_secret_id, owner_user_id",
       )
       .eq("id", body.account_id)
       .maybeSingle();
 
     if (accErr || !account) {
       return json({ ok: false, error: "Account not found" }, 404);
+    }
+    if (account.owner_user_id !== userId) {
+      return json({ ok: false, error: "Forbidden" }, 403);
     }
     if (!account.vault_secret_id) {
       return json(
