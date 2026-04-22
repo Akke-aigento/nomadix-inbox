@@ -234,6 +234,56 @@ export type Database = {
           },
         ]
       }
+      brand_email_addresses: {
+        Row: {
+          brand_id: string
+          catch_all_domain: string | null
+          created_at: string
+          email_address: string
+          id: string
+          is_catch_all: boolean
+          is_primary: boolean
+          is_reply_default: boolean
+          label: string | null
+          owner_user_id: string
+          sort_order: number
+        }
+        Insert: {
+          brand_id: string
+          catch_all_domain?: string | null
+          created_at?: string
+          email_address: string
+          id?: string
+          is_catch_all?: boolean
+          is_primary?: boolean
+          is_reply_default?: boolean
+          label?: string | null
+          owner_user_id?: string
+          sort_order?: number
+        }
+        Update: {
+          brand_id?: string
+          catch_all_domain?: string | null
+          created_at?: string
+          email_address?: string
+          id?: string
+          is_catch_all?: boolean
+          is_primary?: boolean
+          is_reply_default?: boolean
+          label?: string | null
+          owner_user_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_email_addresses_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           ai_auto_draft_enabled: boolean
@@ -505,6 +555,7 @@ export type Database = {
           in_reply_to: string | null
           is_outbound: boolean
           is_read: boolean
+          matched_email_address: string | null
           message_id_header: string | null
           needs_reply: boolean | null
           owner_user_id: string
@@ -539,6 +590,7 @@ export type Database = {
           in_reply_to?: string | null
           is_outbound?: boolean
           is_read?: boolean
+          matched_email_address?: string | null
           message_id_header?: string | null
           needs_reply?: boolean | null
           owner_user_id?: string
@@ -573,6 +625,7 @@ export type Database = {
           in_reply_to?: string | null
           is_outbound?: boolean
           is_read?: boolean
+          matched_email_address?: string | null
           message_id_header?: string | null
           needs_reply?: boolean | null
           owner_user_id?: string
