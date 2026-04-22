@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ analyzed, errors, skipped, total: targetIds.length }),
+      JSON.stringify({ analyzed, errors, skipped, drafts_triggered: draftsTriggered, total: targetIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
