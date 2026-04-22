@@ -121,6 +121,24 @@ export async function processMessage(
     });
   }
 
+  // Run routing rules BEFORE updating thread stats so archive/mark-read
+  // changes are reflected in the resulting unread/last_message counters.
+  try {
+    await applyRoutingRules(supabase, {
+      id: message.id,
+      owner_user_id: account.owner_user_id,
+      thread_id: threadId,
+      brand_id: detection.brand_id,
+      from_address: parsed.from?.value?.[0]?.address ?? "unknown@unknown",
+      subject: parsed.subject ?? null,
+      to_addresses: parsed.to?.value ?? [],
+      cc_addresses: parsed.cc?.value ?? [],
+      raw_headers: rawHeaders,
+    });
+  } catch (e) {
+    console.error("apply-rules failed for", message.id, e);
+  }
+
   await updateThreadStats(threadId, supabase);
 
   // Fire-and-forget AI analysis. Failures are logged but never block sync.
