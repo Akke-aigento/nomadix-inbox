@@ -11,9 +11,6 @@ import AuthPage from "./pages/AuthPage";
 import InboxPage from "./pages/InboxPage";
 import SettingsPage from "./pages/SettingsPage";
 import RulesPage from "./pages/RulesPage";
-import { NomadixSplash } from "@/components/inbox/NomadixSplash";
-import { BrandAccentRoot } from "@/components/BrandAccentRoot";
-import { SendSweep } from "@/components/SendSweep";
 
 const queryClient = new QueryClient();
 
@@ -22,11 +19,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <SendSweep />
-      <NomadixSplash />
       <BrowserRouter>
         <AuthProvider>
-          <BrandAccentRoot />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<AuthPage />} />

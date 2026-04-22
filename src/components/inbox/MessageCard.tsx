@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ChevronDown, ChevronRight, Reply, ReplyAll, Forward } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { AttachmentList, type AttachmentRow } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
-import { gradientFromSeed, initials as initialsFromSeed } from "@/lib/theme";
 import type { ComposeMode } from "./ReplyComposer";
 
 export interface MessageRecord {
@@ -23,7 +23,13 @@ export interface MessageRecord {
 }
 
 function initials(name: string | null, email: string) {
-  return initialsFromSeed(name, email);
+  const src = name || email.split("@")[0];
+  return src
+    .split(/[\s.@_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join("");
 }
 
 function foldQuoted(html: string): string {
@@ -54,19 +60,17 @@ export function MessageCard({ message, attachments, brandName, defaultExpanded, 
   const date = new Date(message.received_at);
 
   return (
-    <div className={cn("border border-subtle bg-surface-1 rounded-lg", isLast && "elev-1")}>
+    <div className={cn("border border-border/60 bg-card rounded-lg", isLast && "shadow-sm")}>
       <button
         onClick={() => setExpanded((e) => !e)}
         className="flex w-full items-start gap-3 p-4 text-left"
         aria-expanded={expanded}
       >
-        <span
-          aria-hidden
-          className="flex h-10 w-10 flex-none items-center justify-center rounded-full font-mono text-[11px] font-semibold uppercase tracking-wider text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
-          style={{ backgroundImage: gradientFromSeed(message.from_address || message.from_name || "?") }}
-        >
-          {initials(message.from_name, message.from_address)}
-        </span>
+        <Avatar className="h-9 w-9 flex-none">
+          <AvatarFallback className="bg-muted text-xs">
+            {initials(message.from_name, message.from_address)}
+          </AvatarFallback>
+        </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="truncate text-sm font-semibold">{message.from_name || message.from_address}</span>

@@ -26,7 +26,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
 import { useBrandsQuery } from "@/hooks/useThreadsQuery";
@@ -61,14 +60,16 @@ export function CommandPalette({
 }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { update, reset } = useInboxFilters();
+  const { filters, update, reset } = useInboxFilters();
   const { data: brands = [] } = useBrandsQuery();
   const [search, setSearch] = useState("");
 
+  // Reset query when opening
   useEffect(() => {
     if (open) setSearch("");
   }, [open]);
 
+  // Categories across all brands
   const { data: categories = [] } = useQuery({
     queryKey: ["all-brand-categories"],
     queryFn: async () => {
@@ -80,6 +81,7 @@ export function CommandPalette({
     },
   });
 
+  // Recent threads (last 30) for quick jump
   const { data: recentThreads = [] } = useQuery({
     queryKey: ["palette-recent-threads"],
     queryFn: async () => {
@@ -129,16 +131,16 @@ export function CommandPalette({
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Search, jump, do anything…"
+        placeholder="Type a command, brand, category, or thread…"
         value={search}
         onValueChange={setSearch}
       />
-      <CommandList>
-        <CommandEmpty>No matches. Try something else?</CommandEmpty>
+      <CommandList className="max-h-[420px]">
+        <CommandEmpty>No matches found.</CommandEmpty>
 
         {targetIds.length > 0 && (
           <>
-            <CommandGroup heading={`Actions · ${targetIds.length} selected`}>
+            <CommandGroup heading={`Actions (${targetIds.length} selected)`}>
               <CommandItem
                 onSelect={async () => {
                   await archiveThreads(targetIds, qc);
@@ -147,8 +149,8 @@ export function CommandPalette({
                   close();
                 }}
               >
-                <Archive strokeWidth={1.75} /> Archive
-                <CommandShortcut>e</CommandShortcut>
+                <Archive className="mr-2 h-4 w-4" /> Archive
+                <span className="ml-auto text-[10px] text-muted-foreground">e</span>
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -157,8 +159,8 @@ export function CommandPalette({
                   close();
                 }}
               >
-                <MailOpen strokeWidth={1.75} /> Mark read
-                <CommandShortcut>u</CommandShortcut>
+                <MailOpen className="mr-2 h-4 w-4" /> Mark read
+                <span className="ml-auto text-[10px] text-muted-foreground">u</span>
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -167,7 +169,7 @@ export function CommandPalette({
                   close();
                 }}
               >
-                <Mail strokeWidth={1.75} /> Mark unread
+                <Mail className="mr-2 h-4 w-4" /> Mark unread
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -177,8 +179,8 @@ export function CommandPalette({
                   close();
                 }}
               >
-                <Trash2 strokeWidth={1.75} /> Delete
-                <CommandShortcut>⇧3</CommandShortcut>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                <span className="ml-auto text-[10px] text-muted-foreground">⇧3</span>
               </CommandItem>
             </CommandGroup>
             <CommandSeparator />
@@ -192,8 +194,8 @@ export function CommandPalette({
               close();
             }}
           >
-            <PenSquare strokeWidth={1.75} /> New message
-            <CommandShortcut>c</CommandShortcut>
+            <PenSquare className="mr-2 h-4 w-4" /> New message
+            <span className="ml-auto text-[10px] text-muted-foreground">c</span>
           </CommandItem>
           {selectedId && (
             <CommandItem
@@ -202,8 +204,8 @@ export function CommandPalette({
                 close();
               }}
             >
-              <Reply strokeWidth={1.75} /> Reply to current thread
-              <CommandShortcut>r</CommandShortcut>
+              <Reply className="mr-2 h-4 w-4" /> Reply to current thread
+              <span className="ml-auto text-[10px] text-muted-foreground">r</span>
             </CommandItem>
           )}
         </CommandGroup>
@@ -214,8 +216,12 @@ export function CommandPalette({
           {VIEW_ITEMS.map((v) => {
             const Icon = v.icon;
             return (
-              <CommandItem key={v.key} value={`view ${v.label}`} onSelect={() => goView(v.key)}>
-                <Icon strokeWidth={1.75} />
+              <CommandItem
+                key={v.key}
+                value={`view ${v.label}`}
+                onSelect={() => goView(v.key)}
+              >
+                <Icon className="mr-2 h-4 w-4" />
                 Go to {v.label}
               </CommandItem>
             );
@@ -233,12 +239,13 @@ export function CommandPalette({
                   onSelect={() => goBrand(b.slug)}
                 >
                   <span
-                    className="h-2.5 w-2.5 flex-none rounded-full"
+                    className="mr-2 h-2.5 w-2.5 rounded-full"
                     style={{ background: b.color_primary }}
-                    aria-hidden
                   />
                   {b.name}
-                  {i < 9 && <CommandShortcut>g {i + 1}</CommandShortcut>}
+                  {i < 9 && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">g {i + 1}</span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -255,7 +262,7 @@ export function CommandPalette({
                   value={`category ${c.name} ${c.slug}`}
                   onSelect={() => goCategory(c.id)}
                 >
-                  <Tag strokeWidth={1.75} style={{ color: c.color }} />
+                  <Tag className="mr-2 h-4 w-4" style={{ color: c.color }} />
                   {c.name}
                 </CommandItem>
               ))}
@@ -274,13 +281,12 @@ export function CommandPalette({
                   onSelect={() => goThread(t.id)}
                 >
                   <span
-                    className="h-2 w-2 flex-none rounded-full"
-                    style={{ background: t.brand?.color_primary ?? "hsl(var(--text-tertiary))" }}
-                    aria-hidden
+                    className="mr-2 h-2 w-2 flex-none rounded-full"
+                    style={{ background: t.brand?.color_primary ?? "hsl(var(--muted-foreground))" }}
                   />
                   <span className="truncate">{t.subject || "(no subject)"}</span>
                   {t.brand?.name && (
-                    <span className="ml-auto truncate font-mono text-[10px] uppercase tracking-wider text-text-tertiary">
+                    <span className="ml-2 truncate text-[10px] text-muted-foreground">
                       {t.brand.name}
                     </span>
                   )}
@@ -299,7 +305,7 @@ export function CommandPalette({
               close();
             }}
           >
-            <Sparkles strokeWidth={1.75} /> Clear all filters
+            <Sparkles className="mr-2 h-4 w-4" /> Clear all filters
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -307,8 +313,8 @@ export function CommandPalette({
               close();
             }}
           >
-            <SettingsIcon strokeWidth={1.75} /> Open settings
-            <CommandShortcut>g s</CommandShortcut>
+            <SettingsIcon className="mr-2 h-4 w-4" /> Open settings
+            <span className="ml-auto text-[10px] text-muted-foreground">g s</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>
