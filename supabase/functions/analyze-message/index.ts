@@ -199,6 +199,48 @@ async function persistAnalysis(
   }
 }
 
+// Decide whether to auto-trigger an AI draft based on brand settings + analysis result.
+async function evaluateDraftTrigger(
+  supabase: any,
+  settings: any,
+  msg: any,
+  result: AnalysisResult,
+): Promise<boolean> {
+  if (!settings) return false;
+  if (!settings.ai_auto_draft_enabled) return false;
+  const mode = settings.ai_draft_mode as string;
+  if (mode === "off") return false;
+
+  if (msg.is_outbound) return false;
+  const senderType = result.sender_type;
+  if (
+    senderType === "newsletter" ||
+    senderType === "transactional" ||
+    senderType === "spam" ||
+    senderType === "automated"
+  ) {
+    return false;
+  }
+
+  if (mode === "all_inbound") return true;
+  if (mode === "customer_only") {
+    return senderType === "human" && result.needs_reply;
+  }
+  if (mode === "labeled") {
+    const triggers = (settings.ai_draft_trigger_labels || []) as string[];
+    if (!triggers.length || !msg.thread_id) return false;
+    const { data: tlabels } = await supabase
+      .from("thread_labels")
+      .select("label:labels(name)")
+      .eq("thread_id", msg.thread_id);
+    const names = new Set(
+      (tlabels || []).map((r: any) => r.label?.name).filter(Boolean),
+    );
+    return triggers.some((t) => names.has(t));
+  }
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -242,16 +284,18 @@ Deno.serve(async (req) => {
     const { data: messages } = await supabase
       .from("messages")
       .select(
-        "id, owner_user_id, brand_id, from_address, from_name, subject, body_text, body_html, matched_email_address",
+        "id, owner_user_id, brand_id, thread_id, is_outbound, from_address, from_name, subject, body_text, body_html, matched_email_address",
       )
       .in("id", targetIds);
 
     let analyzed = 0;
     let errors = 0;
     let skipped = 0;
+    let draftsTriggered = 0;
 
-    // Fetch categories per brand once
+    // Fetch categories + brand AI settings per brand once
     const brandCats = new Map<string, any[]>();
+    const brandAiSettings = new Map<string, any>();
 
     for (const msg of messages || []) {
       try {
@@ -275,6 +319,46 @@ Deno.serve(async (req) => {
         const result = await analyzeOne(msg, cats, apiKey);
         await persistAnalysis(supabase, msg, result);
         analyzed++;
+
+        // === AI auto-draft trigger ===
+        if (msg.brand_id) {
+          if (!brandAiSettings.has(msg.brand_id)) {
+            const { data: brandRow } = await supabase
+              .from("brands")
+              .select(
+                "ai_auto_draft_enabled, ai_draft_mode, ai_draft_trigger_labels",
+              )
+              .eq("id", msg.brand_id)
+              .maybeSingle();
+            brandAiSettings.set(msg.brand_id, brandRow || null);
+          }
+          const settings = brandAiSettings.get(msg.brand_id);
+          const shouldDraft = await evaluateDraftTrigger(
+            supabase,
+            settings,
+            msg,
+            result,
+          );
+          if (shouldDraft) {
+            // Fire-and-forget: invoke generate-draft-reply
+            try {
+              await fetch(
+                `${supabaseUrl}/functions/v1/generate-draft-reply`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${serviceKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ message_id: msg.id }),
+                },
+              );
+              draftsTriggered++;
+            } catch (e) {
+              console.error("draft trigger failed for", msg.id, e);
+            }
+          }
+        }
       } catch (e) {
         console.error("analyze-message error for", msg.id, e);
         errors++;
@@ -282,7 +366,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ analyzed, errors, skipped, total: targetIds.length }),
+      JSON.stringify({ analyzed, errors, skipped, drafts_triggered: draftsTriggered, total: targetIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {

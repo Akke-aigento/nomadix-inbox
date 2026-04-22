@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
+import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -46,6 +47,7 @@ interface ComposerState {
   parent: MessageRecord;
   draftId: string | null;
   initialDraft: any | null;
+  aiSeed: { subject: string | null; body_html: string } | null;
 }
 
 export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
@@ -82,11 +84,18 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         )
         .in("in_reply_to_message_id", (messages || []).map((m) => m.id))
         .order("updated_at", { ascending: false });
+      const { data: aiDrafts } = await supabase
+        .from("ai_drafts")
+        .select(
+          "id, message_id, draft_subject, draft_body_html, draft_body_text, status, reasoning, model_used, generated_at",
+        )
+        .in("message_id", (messages || []).map((m) => m.id));
       return {
         thread,
         messages: (messages || []) as MessageRecord[],
         attachments: (attachments || []) as (AttachmentRow & { message_id: string })[],
         drafts: drafts || [],
+        aiDrafts: (aiDrafts || []) as AiDraftRow[],
       };
     },
   });
@@ -140,7 +149,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   const lastMessage = data?.messages?.[data.messages.length - 1];
 
   const openComposer = useCallback(
-    (mode: ComposeMode, parent: MessageRecord) => {
+    (mode: ComposeMode, parent: MessageRecord, aiSeed: ComposerState["aiSeed"] = null) => {
       const existingDraft = data?.drafts?.find((d) => d.in_reply_to_message_id === parent.id);
       setComposer({
         mode,
@@ -155,9 +164,20 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
               bcc_addresses: existingDraft.bcc_addresses,
             }
           : null,
+        aiSeed,
       });
     },
     [data?.drafts],
+  );
+
+  const useAiDraft = useCallback(
+    (parent: MessageRecord, draft: AiDraftRow) => {
+      openComposer("reply", parent, {
+        subject: draft.draft_subject,
+        body_html: draft.draft_body_html,
+      });
+    },
+    [openComposer],
   );
 
   // Keyboard: r/A/f for compose, b for snooze, v for labels, m for mute
@@ -436,17 +456,26 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           {data.messages.map((m, i) => {
             const atts = data.attachments.filter((a) => a.message_id === m.id);
             const draftForMsg = data.drafts.find((d) => d.in_reply_to_message_id === m.id);
+            const aiDraftForMsg = data.aiDrafts.find((d) => d.message_id === m.id);
+            const isLast = i === data.messages.length - 1;
             return (
               <div key={m.id} className="space-y-3">
                 <MessageCard
                   message={m}
                   attachments={atts}
                   brandName={(data.thread!.brand as any)?.name}
-                  defaultExpanded={i === data.messages.length - 1 || data.messages.length === 1}
-                  isLast={i === data.messages.length - 1}
+                  defaultExpanded={isLast || data.messages.length === 1}
+                  isLast={isLast}
                   onCompose={!composer ? openComposer : undefined}
                 />
-                {!composer && draftForMsg && i === data.messages.length - 1 && (
+                {!composer && isLast && aiDraftForMsg && (
+                  <AiDraftCard
+                    draft={aiDraftForMsg}
+                    onUse={(d) => useAiDraft(m, d)}
+                    onChanged={() => qc.invalidateQueries({ queryKey: ["thread", threadId] })}
+                  />
+                )}
+                {!composer && draftForMsg && isLast && (
                   <button
                     onClick={() => openComposer("reply", m)}
                     className="ml-1 flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary transition hover:bg-primary/10"
@@ -467,6 +496,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
                 mode={composer.mode}
                 draftId={composer.draftId}
                 initialDraft={composer.initialDraft}
+                aiSeed={composer.aiSeed}
                 onCancel={() => setComposer(null)}
                 onSent={() => setComposer(null)}
               />
