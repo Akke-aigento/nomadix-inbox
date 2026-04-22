@@ -25,6 +25,7 @@ export type Database = {
           id: string
           message_id: string
           model_used: string
+          owner_user_id: string
           reasoning: string | null
           status: string
           tokens_used: number | null
@@ -39,6 +40,7 @@ export type Database = {
           id?: string
           message_id: string
           model_used?: string
+          owner_user_id?: string
           reasoning?: string | null
           status?: string
           tokens_used?: number | null
@@ -53,6 +55,7 @@ export type Database = {
           id?: string
           message_id?: string
           model_used?: string
+          owner_user_id?: string
           reasoning?: string | null
           status?: string
           tokens_used?: number | null
@@ -90,6 +93,7 @@ export type Database = {
           is_inline: boolean
           message_id: string | null
           mime_type: string | null
+          owner_user_id: string
           size_bytes: number | null
           storage_path: string | null
         }
@@ -101,6 +105,7 @@ export type Database = {
           is_inline?: boolean
           message_id?: string | null
           mime_type?: string | null
+          owner_user_id?: string
           size_bytes?: number | null
           storage_path?: string | null
         }
@@ -112,6 +117,7 @@ export type Database = {
           is_inline?: boolean
           message_id?: string | null
           mime_type?: string | null
+          owner_user_id?: string
           size_bytes?: number | null
           storage_path?: string | null
         }
@@ -134,6 +140,7 @@ export type Database = {
           email_alias: string | null
           id: string
           is_default: boolean
+          owner_user_id: string
           role_title: string | null
           signature_html: string
           sort_order: number
@@ -147,6 +154,7 @@ export type Database = {
           email_alias?: string | null
           id?: string
           is_default?: boolean
+          owner_user_id?: string
           role_title?: string | null
           signature_html: string
           sort_order?: number
@@ -160,6 +168,7 @@ export type Database = {
           email_alias?: string | null
           id?: string
           is_default?: boolean
+          owner_user_id?: string
           role_title?: string | null
           signature_html?: string
           sort_order?: number
@@ -185,6 +194,7 @@ export type Database = {
           id: string
           is_ai_enabled: boolean
           name: string
+          owner_user_id: string
           slug: string
           sort_order: number
         }
@@ -197,6 +207,7 @@ export type Database = {
           id?: string
           is_ai_enabled?: boolean
           name: string
+          owner_user_id?: string
           slug: string
           sort_order?: number
         }
@@ -209,6 +220,7 @@ export type Database = {
           id?: string
           is_ai_enabled?: boolean
           name?: string
+          owner_user_id?: string
           slug?: string
           sort_order?: number
         }
@@ -239,6 +251,7 @@ export type Database = {
           is_active: boolean
           logo_url: string | null
           name: string
+          owner_user_id: string
           signature_html: string | null
           slug: string
           sort_order: number
@@ -260,6 +273,7 @@ export type Database = {
           is_active?: boolean
           logo_url?: string | null
           name: string
+          owner_user_id?: string
           signature_html?: string | null
           slug: string
           sort_order?: number
@@ -281,6 +295,7 @@ export type Database = {
           is_active?: boolean
           logo_url?: string | null
           name?: string
+          owner_user_id?: string
           signature_html?: string | null
           slug?: string
           sort_order?: number
@@ -297,6 +312,7 @@ export type Database = {
           created_at: string
           id: string
           in_reply_to_message_id: string | null
+          owner_user_id: string
           subject: string | null
           to_addresses: Json
           updated_at: string
@@ -309,6 +325,7 @@ export type Database = {
           created_at?: string
           id?: string
           in_reply_to_message_id?: string | null
+          owner_user_id?: string
           subject?: string | null
           to_addresses?: Json
           updated_at?: string
@@ -321,6 +338,7 @@ export type Database = {
           created_at?: string
           id?: string
           in_reply_to_message_id?: string | null
+          owner_user_id?: string
           subject?: string | null
           to_addresses?: Json
           updated_at?: string
@@ -353,6 +371,7 @@ export type Database = {
           last_sync_at: string | null
           last_sync_error: string | null
           last_sync_status: string | null
+          owner_user_id: string
           smtp_host: string
           smtp_port: number
           smtp_use_tls: boolean
@@ -370,6 +389,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_sync_status?: string | null
+          owner_user_id?: string
           smtp_host?: string
           smtp_port?: number
           smtp_use_tls?: boolean
@@ -387,6 +407,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_sync_status?: string | null
+          owner_user_id?: string
           smtp_host?: string
           smtp_port?: number
           smtp_use_tls?: boolean
@@ -402,18 +423,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          owner_user_id: string
         }
         Insert: {
           color?: string
           created_at?: string
           id?: string
           name: string
+          owner_user_id?: string
         }
         Update: {
           color?: string
           created_at?: string
           id?: string
           name?: string
+          owner_user_id?: string
         }
         Relationships: []
       }
@@ -424,6 +448,7 @@ export type Database = {
           created_at: string
           detected_via: string
           message_id: string
+          owner_user_id: string
         }
         Insert: {
           category_id: string
@@ -431,6 +456,7 @@ export type Database = {
           created_at?: string
           detected_via?: string
           message_id: string
+          owner_user_id?: string
         }
         Update: {
           category_id?: string
@@ -438,6 +464,7 @@ export type Database = {
           created_at?: string
           detected_via?: string
           message_id?: string
+          owner_user_id?: string
         }
         Relationships: [
           {
@@ -480,6 +507,7 @@ export type Database = {
           is_read: boolean
           message_id_header: string | null
           needs_reply: boolean | null
+          owner_user_id: string
           raw_headers: Json | null
           received_at: string
           reply_to: string | null
@@ -513,6 +541,7 @@ export type Database = {
           is_read?: boolean
           message_id_header?: string | null
           needs_reply?: boolean | null
+          owner_user_id?: string
           raw_headers?: Json | null
           received_at: string
           reply_to?: string | null
@@ -546,6 +575,7 @@ export type Database = {
           is_read?: boolean
           message_id_header?: string | null
           needs_reply?: boolean | null
+          owner_user_id?: string
           raw_headers?: Json | null
           received_at?: string
           reply_to?: string | null
@@ -597,6 +627,7 @@ export type Database = {
           match_subject_contains: string | null
           match_to_contains: string | null
           name: string
+          owner_user_id: string
           priority: number
           times_matched: number
         }
@@ -616,6 +647,7 @@ export type Database = {
           match_subject_contains?: string | null
           match_to_contains?: string | null
           name: string
+          owner_user_id?: string
           priority?: number
           times_matched?: number
         }
@@ -635,6 +667,7 @@ export type Database = {
           match_subject_contains?: string | null
           match_to_contains?: string | null
           name?: string
+          owner_user_id?: string
           priority?: number
           times_matched?: number
         }
@@ -670,6 +703,7 @@ export type Database = {
           highest_uid_seen: number | null
           id: string
           messages_fetched: number | null
+          owner_user_id: string
           started_at: string
           status: string | null
         }
@@ -680,6 +714,7 @@ export type Database = {
           highest_uid_seen?: number | null
           id?: string
           messages_fetched?: number | null
+          owner_user_id?: string
           started_at?: string
           status?: string | null
         }
@@ -690,6 +725,7 @@ export type Database = {
           highest_uid_seen?: number | null
           id?: string
           messages_fetched?: number | null
+          owner_user_id?: string
           started_at?: string
           status?: string | null
         }
@@ -706,14 +742,17 @@ export type Database = {
       thread_labels: {
         Row: {
           label_id: string
+          owner_user_id: string
           thread_id: string
         }
         Insert: {
           label_id: string
+          owner_user_id?: string
           thread_id: string
         }
         Update: {
           label_id?: string
+          owner_user_id?: string
           thread_id?: string
         }
         Relationships: [
@@ -743,6 +782,7 @@ export type Database = {
           is_starred: boolean
           last_message_at: string | null
           message_count: number
+          owner_user_id: string
           participants: Json
           preview: string | null
           subject: string | null
@@ -758,6 +798,7 @@ export type Database = {
           is_starred?: boolean
           last_message_at?: string | null
           message_count?: number
+          owner_user_id?: string
           participants?: Json
           preview?: string | null
           subject?: string | null
@@ -773,6 +814,7 @@ export type Database = {
           is_starred?: boolean
           last_message_at?: string | null
           message_count?: number
+          owner_user_id?: string
           participants?: Json
           preview?: string | null
           subject?: string | null
