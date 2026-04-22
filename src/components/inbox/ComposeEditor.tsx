@@ -41,7 +41,7 @@ export function ComposeEditor({ initialHtml, onChange, placeholder = "Write your
   useEffect(() => {
     if (!editor) return;
     if (editor.getHTML() !== initialHtml) {
-      editor.commands.setContent(initialHtml, false);
+      editor.commands.setContent(initialHtml);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialHtml]);
