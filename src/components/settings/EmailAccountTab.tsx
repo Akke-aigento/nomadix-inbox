@@ -194,7 +194,30 @@ export default function EmailAccountTab() {
     }
   };
 
-  const statusBadge = () => {
+  const analyzeBacklog = async () => {
+    setAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-message", {
+        body: { limit: 50 },
+      });
+      if (error) throw error;
+      const result = data as { analyzed?: number; errors?: number; skipped?: number; total?: number; error?: string };
+      if (result.error) {
+        toast.error(result.error);
+      } else if (!result.total) {
+        toast.success("Nothing to analyze — all messages have summaries");
+      } else {
+        const parts = [`${result.analyzed ?? 0} analyzed`];
+        if ((result.skipped ?? 0) > 0) parts.push(`${result.skipped} skipped`);
+        if ((result.errors ?? 0) > 0) parts.push(`${result.errors} errors`);
+        toast.success(`AI analysis — ${parts.join(", ")}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
     const s = account?.last_sync_status;
     if (!s) return <Badge variant="secondary">Never tested</Badge>;
     if (s === "ok")
