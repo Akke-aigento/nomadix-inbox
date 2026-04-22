@@ -95,6 +95,16 @@ export function useInboxKeyboard(args: Args) {
           navigate("/settings");
           return;
         }
+        if (k === "z") {
+          update({ view: "snoozed", brands: [] });
+          if (window.location.pathname !== "/inbox") navigate("/inbox");
+          return;
+        }
+        if (k === "m") {
+          update({ view: "muted", brands: [] });
+          if (window.location.pathname !== "/inbox") navigate("/inbox");
+          return;
+        }
         if (k === "a") {
           update({ view: "archive", brands: [] });
           if (window.location.pathname !== "/inbox") navigate("/inbox");
@@ -258,10 +268,8 @@ export function useInboxKeyboard(args: Args) {
     { enableOnFormTags: true },
   );
 
-  // Stub shortcuts
-  useHotkeys("r", () => toast.info("Reply — coming in Phase 3C"), opts);
-  useHotkeys("shift+r", () => toast.info("Reply All — coming in Phase 3C"), opts);
-  useHotkeys("f", () => toast.info("Forward — coming in Phase 3C"), opts);
-  useHotkeys("c", () => toast.info("Compose — coming in Phase 3C"), opts);
-  useHotkeys("s", () => toast.info("Snooze — coming soon"), opts);
+  // Reply / forward / snooze / label / mute are handled in ThreadDetail
+  // (because they need parentMessage / picker UI). Keep these placeholders
+  // out of the global hook to avoid double-handling.
+  useHotkeys("c", () => toast.info("Compose — coming soon"), opts);
 }

@@ -8,6 +8,7 @@ import {
   FileEdit,
   Archive,
   Mailbox,
+  BellOff,
   Settings as SettingsIcon,
   RefreshCw,
   ChevronLeft,
@@ -23,7 +24,8 @@ import { formatDistanceToNow } from "date-fns";
 const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
   { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
   { key: "needs-reply", label: "Needs Reply", icon: MessageSquareWarning, shortcut: "g r" },
-  { key: "snoozed", label: "Snoozed", icon: Clock, shortcut: "g s" },
+  { key: "snoozed", label: "Snoozed", icon: Clock, shortcut: "g z" },
+  { key: "muted", label: "Muted", icon: BellOff, shortcut: "g m" },
   { key: "sent", label: "Sent", icon: Send },
   { key: "drafts", label: "Drafts", icon: FileEdit },
   { key: "archive", label: "Archive", icon: Archive, shortcut: "g a" },
@@ -112,7 +114,12 @@ export function InboxSidebar({
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const active = isViewActive(v.key);
-            const badge = v.key === "inbox" ? counts?.totalUnread : undefined;
+            const badge =
+              v.key === "inbox"
+                ? counts?.totalUnread
+                : v.key === "snoozed"
+                ? counts?.snoozed
+                : undefined;
             return (
               <SidebarItem
                 key={v.key}
