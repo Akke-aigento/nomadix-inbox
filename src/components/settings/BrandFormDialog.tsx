@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import BrandAccountsTab from "./BrandAccountsTab";
 import BrandAISettingsTab from "./BrandAISettingsTab";
 import BrandCategoriesTab from "./BrandCategoriesTab";
+import BrandEmailAddressesManager from "./BrandEmailAddressesManager";
 import { sanitizeSignature } from "@/lib/sanitize";
 
 export interface Brand {
@@ -115,31 +116,53 @@ export default function BrandFormDialog({
   };
 
   const submitGeneralAndSignature = async () => {
-    if (!form.slug || !form.name || !form.email_address || !form.display_name) {
-      toast.error("Slug, name, email and display name are required");
+    if (!form.slug || !form.name || !form.display_name) {
+      toast.error("Slug, name and display name are required");
+      return;
+    }
+    if (!brand && !form.email_address) {
+      toast.error("A primary email address is required for new brands");
       return;
     }
     setBusy(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         slug: form.slug,
         name: form.name,
-        email_address: form.email_address,
         display_name: form.display_name,
         color_primary: form.color_primary,
         logo_url: form.logo_url || null,
         default_signature_html: form.default_signature_html || null,
       };
       if (brand) {
+        // email_address is now managed via brand_email_addresses + sync trigger
         const { error } = await supabase.from("brands").update(payload).eq("id", brand.id);
         if (error) throw error;
         toast.success("Brand updated");
       } else {
         const maxOrder = existingSortOrders.length ? Math.max(...existingSortOrders) : 0;
-        const { error } = await supabase
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
+        const { data: created, error } = await supabase
           .from("brands")
-          .insert({ ...payload, sort_order: maxOrder + 10, is_active: true });
+          .insert({
+            ...payload,
+            email_address: form.email_address,
+            sort_order: maxOrder + 10,
+            is_active: true,
+          })
+          .select("id")
+          .single();
         if (error) throw error;
+        // Seed primary brand_email_addresses entry
+        if (created) {
+          await supabase.from("brand_email_addresses").insert({
+            brand_id: created.id,
+            email_address: form.email_address.trim().toLowerCase(),
+            is_primary: true,
+            sort_order: 0,
+          });
+        }
         toast.success("Brand added");
       }
       onSaved();
