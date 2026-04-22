@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { File, FileText, Image as ImageIcon, Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -69,19 +69,19 @@ function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; 
   const [url, setUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
-  useState(() => {
-    if (!att?.storage_path) return;
-    getSignedUrl(att.storage_path).then(setUrl);
-  });
-
-  // re-fetch when att changes
-  if (att && url === null) {
-    if (att.storage_path) getSignedUrl(att.storage_path).then(setUrl);
-  }
-  if (!att && url !== null) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    setUrl;
-  }
+  useEffect(() => {
+    let active = true;
+    setUrl(null);
+    setNumPages(null);
+    if (att?.storage_path) {
+      getSignedUrl(att.storage_path).then((u) => {
+        if (active) setUrl(u);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [att]);
 
   const isImage = att?.mime_type?.startsWith("image/");
   const isPdf = att?.mime_type === "application/pdf";
