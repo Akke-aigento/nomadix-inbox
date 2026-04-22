@@ -122,6 +122,25 @@ export async function processMessage(
 
   await updateThreadStats(threadId, supabase);
 
+  // Fire-and-forget AI analysis. Failures are logged but never block sync.
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (supabaseUrl && serviceKey) {
+      // Don't await — let it run in the background
+      fetch(`${supabaseUrl}/functions/v1/analyze-message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify({ message_id: message.id }),
+      }).catch((e) => console.error("analyze-message dispatch failed:", e));
+    }
+  } catch (e) {
+    console.error("analyze-message dispatch error:", e);
+  }
+
   return {
     status: "created",
     message_id: message.id,

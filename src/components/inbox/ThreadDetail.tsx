@@ -30,7 +30,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance }: Props) {
       const { data: messages } = await supabase
         .from("messages")
         .select(
-          "id, from_address, from_name, to_addresses, cc_addresses, subject, body_html, body_text, received_at, matched_email_address, is_read, ai_summary",
+          "id, from_address, from_name, to_addresses, cc_addresses, subject, body_html, body_text, received_at, matched_email_address, is_read, ai_summary, needs_reply, urgency, sender_type, requires_action",
         )
         .eq("thread_id", threadId)
         .order("received_at", { ascending: true });
