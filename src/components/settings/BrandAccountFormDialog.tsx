@@ -83,8 +83,10 @@ export default function BrandAccountFormDialog({
     if (!file) return;
     setUploading(true);
     try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) throw userErr ?? new Error("Not authenticated");
       const ext = file.name.split(".").pop() || "png";
-      const path = `${brandId}/${crypto.randomUUID()}.${ext}`;
+      const path = `${user.id}/${brandId}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("brand-account-avatars")
         .upload(path, file, { upsert: true, contentType: file.type });
