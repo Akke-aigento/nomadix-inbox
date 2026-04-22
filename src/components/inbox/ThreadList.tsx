@@ -1,6 +1,7 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Menu } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
@@ -148,37 +149,47 @@ export function ThreadList({
       ) : (
         <div ref={parentRef} className="flex-1 overflow-y-auto">
           <div style={{ height: totalSize, position: "relative" }}>
-            {items.map((vi) => {
-              const t = threads[vi.index];
-              if (!t) return null;
-              const isUnread = (t.unread_count || 0) > 0;
-              return (
-                <div
-                  key={t.id}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    transform: `translateY(${vi.start}px)`,
-                  }}
-                >
-                  <ThreadRowItem
-                    thread={t}
-                    density={density}
-                    selected={selectedIds.has(t.id)}
-                    focused={focusedIndex === vi.index}
-                    active={selectedId === t.id}
-                    isUnread={isUnread}
-                    onClick={() => {
-                      onFocusIndex(vi.index);
-                      onSelectThread(t.id);
+            <AnimatePresence initial={false}>
+              {items.map((vi) => {
+                const t = threads[vi.index];
+                if (!t) return null;
+                const isUnread = (t.unread_count || 0) > 0;
+                return (
+                  <motion.div
+                    key={t.id}
+                    layout
+                    initial={false}
+                    exit={{
+                      opacity: 0,
+                      x: 24,
+                      scale: 0.97,
+                      transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
                     }}
-                    onToggleSelect={() => onToggleSelectId(t.id)}
-                  />
-                </div>
-              );
-            })}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      transform: `translateY(${vi.start}px)`,
+                    }}
+                  >
+                    <ThreadRowItem
+                      thread={t}
+                      density={density}
+                      selected={selectedIds.has(t.id)}
+                      focused={focusedIndex === vi.index}
+                      active={selectedId === t.id}
+                      isUnread={isUnread}
+                      onClick={() => {
+                        onFocusIndex(vi.index);
+                        onSelectThread(t.id);
+                      }}
+                      onToggleSelect={() => onToggleSelectId(t.id)}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         </div>
       )}
