@@ -292,6 +292,8 @@ export default function BrandFormDialog({
                 </div>
               </div>
             </div>
+
+            {brand && <BrandEmailAddressesManager brandId={brand.id} />}
           </TabsContent>
 
           <TabsContent value="signature" className="mt-4 space-y-3">
