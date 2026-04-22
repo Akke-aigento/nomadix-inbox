@@ -53,7 +53,7 @@ export default function BrandsTab() {
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true });
     if (error) toast.error(error.message);
-    setBrands((data ?? []) as Brand[]);
+    setBrands((data ?? []) as unknown as Brand[]);
     setLoading(false);
   };
 
