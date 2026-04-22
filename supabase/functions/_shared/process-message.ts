@@ -84,6 +84,7 @@ export async function processMessage(
       raw_headers: rawHeaders,
       detected_via: detection.method,
       detection_confidence: detection.confidence,
+      matched_email_address: detection.matched_address ?? null,
       is_read: false,
       is_outbound: false,
     })

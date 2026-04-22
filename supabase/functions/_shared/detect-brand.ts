@@ -1,10 +1,12 @@
-// Brand detection: tier-based (To/CC/Forwarded headers) with Lovable AI fallback.
-// Uses google/gemini-2.5-flash via Lovable AI Gateway — no Anthropic key needed.
+// Brand detection: tier-based using `brand_email_addresses` table with catch-all
+// support, plus a Lovable AI fallback (google/gemini-2.5-flash) — no Anthropic
+// key required.
 
 export type BrandDetectionMethod =
   | "header_to"
   | "header_cc"
   | "header_forwarded"
+  | "header_catch_all"
   | "ai_high"
   | "ai_low"
   | "unknown";
@@ -13,78 +15,148 @@ export type BrandDetectionResult = {
   brand_id: string | null;
   method: BrandDetectionMethod;
   confidence: number;
+  matched_address?: string | null;
 };
 
 type BrandRow = {
   id: string;
-  email_address: string;
   slug: string;
   name: string;
+  email_address: string | null;
 };
 
-export async function detectBrand(
-  parsed: any,
-  supabase: any,
-): Promise<BrandDetectionResult> {
-  const { data: brands } = await supabase
-    .from("brands")
-    .select("id, email_address, slug, name")
-    .eq("is_active", true);
+type AddressRow = {
+  brand_id: string;
+  email_address: string;
+  is_catch_all: boolean;
+  catch_all_domain: string | null;
+};
 
-  if (!brands?.length) {
-    return { brand_id: null, method: "unknown", confidence: 0 };
-  }
+function extractAddrs(value: any[]): string[] {
+  return (value || [])
+    .map((a: any) => String(a.address ?? "").toLowerCase().trim())
+    .filter(Boolean);
+}
 
-  const brandByEmail = new Map<string, BrandRow>(
-    brands.map((b: BrandRow) => [b.email_address.toLowerCase(), b]),
-  );
-
-  // Tier 1: To
-  for (const addr of parsed.to?.value ?? []) {
-    const hit = brandByEmail.get(String(addr.address ?? "").toLowerCase());
-    if (hit) return { brand_id: hit.id, method: "header_to", confidence: 1.0 };
-  }
-
-  // Tier 2: CC
-  for (const addr of parsed.cc?.value ?? []) {
-    const hit = brandByEmail.get(String(addr.address ?? "").toLowerCase());
-    if (hit) return { brand_id: hit.id, method: "header_cc", confidence: 0.85 };
-  }
-
-  // Tier 3: Forwarded headers (Cloudflare Email Routing adds these)
-  const headers = parsed.headers;
-  const forwardFields = [
+function extractForwarded(headers: any): string[] {
+  const out: string[] = [];
+  const fields = [
     "x-forwarded-to",
     "delivered-to",
     "x-original-to",
     "x-forwarded-for",
   ];
-  for (const field of forwardFields) {
+  for (const field of fields) {
     const val =
       typeof headers?.get === "function"
         ? headers.get(field)
         : (headers as any)?.[field];
     if (!val) continue;
-    const matches = String(val).match(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi) ?? [];
-    for (const email of matches) {
-      const hit = brandByEmail.get(email.toLowerCase());
-      if (hit) {
-        return {
-          brand_id: hit.id,
-          method: "header_forwarded",
-          confidence: 0.9,
-        };
-      }
+    const matches =
+      String(val).match(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi) ?? [];
+    for (const m of matches) out.push(m.toLowerCase());
+  }
+  return out;
+}
+
+export async function detectBrand(
+  parsed: any,
+  supabase: any,
+): Promise<BrandDetectionResult> {
+  const toAddrs = extractAddrs(parsed.to?.value);
+  const ccAddrs = extractAddrs(parsed.cc?.value);
+  const forwardedAddrs = extractForwarded(parsed.headers);
+
+  const allAddrs = Array.from(
+    new Set([...toAddrs, ...ccAddrs, ...forwardedAddrs]),
+  );
+  if (allAddrs.length === 0) {
+    return { brand_id: null, method: "unknown", confidence: 0 };
+  }
+
+  // Pull all candidate explicit addresses + every catch-all in one go.
+  const explicitFilter = allAddrs.length > 0
+    ? `email_address.in.(${allAddrs.map((a) => `"${a}"`).join(",")})`
+    : null;
+  const orFilter = explicitFilter
+    ? `${explicitFilter},is_catch_all.eq.true`
+    : `is_catch_all.eq.true`;
+
+  const { data: matches, error } = await supabase
+    .from("brand_email_addresses")
+    .select("brand_id, email_address, is_catch_all, catch_all_domain")
+    .or(orFilter);
+
+  if (error) {
+    console.error("brand_email_addresses lookup failed:", error);
+  }
+
+  const rows: AddressRow[] = matches ?? [];
+
+  // Tier 1: To exact
+  for (const addr of toAddrs) {
+    const m = rows.find((x) => !x.is_catch_all && x.email_address === addr);
+    if (m) {
+      return {
+        brand_id: m.brand_id,
+        method: "header_to",
+        confidence: 1.0,
+        matched_address: addr,
+      };
     }
   }
 
-  // Tier 4: Lovable AI fallback
-  return await detectBrandViaAI(parsed, brands);
+  // Tier 2: CC exact
+  for (const addr of ccAddrs) {
+    const m = rows.find((x) => !x.is_catch_all && x.email_address === addr);
+    if (m) {
+      return {
+        brand_id: m.brand_id,
+        method: "header_cc",
+        confidence: 0.85,
+        matched_address: addr,
+      };
+    }
+  }
+
+  // Tier 3: Forwarded headers exact
+  for (const addr of forwardedAddrs) {
+    const m = rows.find((x) => !x.is_catch_all && x.email_address === addr);
+    if (m) {
+      return {
+        brand_id: m.brand_id,
+        method: "header_forwarded",
+        confidence: 0.9,
+        matched_address: addr,
+      };
+    }
+  }
+
+  // Tier 4: Catch-all domain on To / Forwarded
+  const catchAlls = rows.filter((x) => x.is_catch_all && x.catch_all_domain);
+  for (const addr of [...toAddrs, ...forwardedAddrs]) {
+    const domain = addr.split("@")[1];
+    if (!domain) continue;
+    const ca = catchAlls.find(
+      (x) => (x.catch_all_domain ?? "").toLowerCase() === domain,
+    );
+    if (ca) {
+      return {
+        brand_id: ca.brand_id,
+        method: "header_catch_all",
+        confidence: 0.92,
+        matched_address: addr,
+      };
+    }
+  }
+
+  // Tier 5: AI fallback
+  return await detectBrandViaAI(parsed, supabase);
 }
 
 async function detectBrandViaAI(
   parsed: any,
-  brands: BrandRow[],
+  supabase: any,
 ): Promise<BrandDetectionResult> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) {
@@ -92,8 +164,17 @@ async function detectBrandViaAI(
     return { brand_id: null, method: "unknown", confidence: 0 };
   }
 
-  const brandList = brands
-    .map((b) => `- ${b.slug} (${b.email_address}): ${b.name}`)
+  const { data: brands } = await supabase
+    .from("brands")
+    .select("id, slug, name, email_address")
+    .eq("is_active", true);
+
+  if (!brands?.length) {
+    return { brand_id: null, method: "unknown", confidence: 0 };
+  }
+
+  const brandList = (brands as BrandRow[])
+    .map((b) => `- ${b.slug} (${b.email_address ?? "n/a"}): ${b.name}`)
     .join("\n");
   const bodySnippet = String(parsed.text || parsed.html || "").slice(0, 800);
 
@@ -177,7 +258,7 @@ Body excerpt: ${bodySnippet}`;
       return { brand_id: null, method: "ai_low", confidence: 0 };
     }
 
-    const brand = brands.find((b) => b.slug === args.brand_slug);
+    const brand = (brands as BrandRow[]).find((b) => b.slug === args.brand_slug);
     if (!brand) {
       return { brand_id: null, method: "ai_low", confidence: 0 };
     }
@@ -187,6 +268,7 @@ Body excerpt: ${bodySnippet}`;
       brand_id: brand.id,
       method: confidence >= 0.7 ? "ai_high" : "ai_low",
       confidence,
+      matched_address: null,
     };
   } catch (err) {
     console.error("Brand AI detection failed:", err);
