@@ -14,6 +14,7 @@ import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
 import { archiveThreads, deleteThreads, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Archive, Trash2, MailOpen, X, BellOff } from "lucide-react";
 import { SnoozePicker } from "@/components/inbox/SnoozePicker";
 import { LabelPicker } from "@/components/inbox/LabelPicker";
@@ -83,6 +84,7 @@ export default function InboxPage() {
   }, [threads, filters.sort]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [density, setDensityState] = useState<Density>(() => loadDensity());
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -175,10 +177,23 @@ export default function InboxPage() {
   const showList = !isMobile || !selectedId;
   const showDetail = !isMobile || !!selectedId;
 
+  // Close mobile sidebar when navigating
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [filters.view, filters.brands.join(","), selectedId]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {!isMobile && (
         <InboxSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((b) => !b)} />
+      )}
+
+      {isMobile && (
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetContent side="left" className="w-64 p-0">
+            <InboxSidebar collapsed={false} onToggle={() => setMobileSidebarOpen(false)} />
+          </SheetContent>
+        </Sheet>
       )}
 
       {!isMobile ? (
@@ -233,6 +248,7 @@ export default function InboxPage() {
               onSelectThread={setSelectedId}
               onToggleSelectId={toggleSelect}
               onFocusIndex={setFocusedIndex}
+              onOpenSidebar={() => setMobileSidebarOpen(true)}
             />
           )}
           {showDetail && (
