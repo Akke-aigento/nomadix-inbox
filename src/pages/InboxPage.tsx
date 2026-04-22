@@ -14,6 +14,7 @@ import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
 import { archiveThreads, deleteThreads, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Archive, Trash2, MailOpen, X, BellOff } from "lucide-react";
 import { SnoozePicker } from "@/components/inbox/SnoozePicker";
 import { LabelPicker } from "@/components/inbox/LabelPicker";
@@ -83,6 +84,7 @@ export default function InboxPage() {
   }, [threads, filters.sort]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [density, setDensityState] = useState<Density>(() => loadDensity());
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
