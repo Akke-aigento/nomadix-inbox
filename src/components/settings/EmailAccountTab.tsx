@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ export default function EmailAccountTab() {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
