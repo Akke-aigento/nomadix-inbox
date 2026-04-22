@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
     const { data: messages } = await supabase
       .from("messages")
       .select(
-        "id, owner_user_id, brand_id, from_address, from_name, subject, body_text, body_html, matched_email_address",
+        "id, owner_user_id, brand_id, thread_id, is_outbound, from_address, from_name, subject, body_text, body_html, matched_email_address",
       )
       .in("id", targetIds);
 
