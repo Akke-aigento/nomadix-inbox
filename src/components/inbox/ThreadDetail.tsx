@@ -32,6 +32,7 @@ import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
 import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
+import { AISummaryCard, AISummaryPending } from "./AISummaryCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
 import { format, formatDistanceToNow } from "date-fns";
 
