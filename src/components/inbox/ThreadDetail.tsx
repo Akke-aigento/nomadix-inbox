@@ -149,7 +149,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   const lastMessage = data?.messages?.[data.messages.length - 1];
 
   const openComposer = useCallback(
-    (mode: ComposeMode, parent: MessageRecord) => {
+    (mode: ComposeMode, parent: MessageRecord, aiSeed: ComposerState["aiSeed"] = null) => {
       const existingDraft = data?.drafts?.find((d) => d.in_reply_to_message_id === parent.id);
       setComposer({
         mode,
@@ -164,9 +164,20 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
               bcc_addresses: existingDraft.bcc_addresses,
             }
           : null,
+        aiSeed,
       });
     },
     [data?.drafts],
+  );
+
+  const useAiDraft = useCallback(
+    (parent: MessageRecord, draft: AiDraftRow) => {
+      openComposer("reply", parent, {
+        subject: draft.draft_subject,
+        body_html: draft.draft_body_html,
+      });
+    },
+    [openComposer],
   );
 
   // Keyboard: r/A/f for compose, b for snooze, v for labels, m for mute
