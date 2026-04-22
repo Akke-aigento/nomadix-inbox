@@ -142,7 +142,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance }: Props) {
                 </span>
               )}
               {latestAnalyzed?.requires_action && !latestAnalyzed?.needs_reply && (
-                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
                   Action required
                 </span>
               )}
