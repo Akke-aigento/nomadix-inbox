@@ -84,11 +84,18 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         )
         .in("in_reply_to_message_id", (messages || []).map((m) => m.id))
         .order("updated_at", { ascending: false });
+      const { data: aiDrafts } = await supabase
+        .from("ai_drafts")
+        .select(
+          "id, message_id, draft_subject, draft_body_html, draft_body_text, status, reasoning, model_used, generated_at",
+        )
+        .in("message_id", (messages || []).map((m) => m.id));
       return {
         thread,
         messages: (messages || []) as MessageRecord[],
         attachments: (attachments || []) as (AttachmentRow & { message_id: string })[],
         drafts: drafts || [],
+        aiDrafts: (aiDrafts || []) as AiDraftRow[],
       };
     },
   });
