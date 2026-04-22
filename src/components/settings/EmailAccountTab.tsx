@@ -218,6 +218,8 @@ export default function EmailAccountTab() {
       setAnalyzing(false);
     }
   };
+
+  const statusBadge = () => {
     const s = account?.last_sync_status;
     if (!s) return <Badge variant="secondary">Never tested</Badge>;
     if (s === "ok")
