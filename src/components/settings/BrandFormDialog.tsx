@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import BrandAccountsTab from "./BrandAccountsTab";
 import BrandAISettingsTab from "./BrandAISettingsTab";
+import BrandCategoriesTab from "./BrandCategoriesTab";
 
 export interface Brand {
   id: string;
@@ -166,6 +167,9 @@ export default function BrandFormDialog({
             <TabsTrigger value="ai" disabled={!brand}>
               AI
             </TabsTrigger>
+            <TabsTrigger value="categories" disabled={!brand}>
+              Categorieën
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-4 space-y-4">
@@ -296,6 +300,10 @@ export default function BrandFormDialog({
           <TabsContent value="ai" className="mt-4">
             {brand ? <BrandAISettingsTab brand={brand} /> : null}
           </TabsContent>
+
+          <TabsContent value="categories" className="mt-4">
+            {brand ? <BrandCategoriesTab brandId={brand.id} /> : null}
+          </TabsContent>
         </Tabs>
 
         {(tab === "general" || tab === "signature") && (
@@ -308,7 +316,7 @@ export default function BrandFormDialog({
             </Button>
           </DialogFooter>
         )}
-        {(tab === "accounts" || tab === "ai") && (
+        {(tab === "accounts" || tab === "ai" || tab === "categories") && (
           <DialogFooter>
             <Button variant="ghost" onClick={onClose}>
               Done
