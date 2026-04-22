@@ -95,8 +95,10 @@ export default function BrandFormDialog({
     if (!file) return;
     setUploading(true);
     try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) throw userErr ?? new Error("Not authenticated");
       const ext = file.name.split(".").pop() || "png";
-      const path = `${form.slug || crypto.randomUUID()}-${Date.now()}.${ext}`;
+      const path = `${user.id}/${form.slug || crypto.randomUUID()}-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("brand-logos")
         .upload(path, file, { upsert: true, contentType: file.type });
