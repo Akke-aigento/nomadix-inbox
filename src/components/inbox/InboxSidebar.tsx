@@ -45,26 +45,44 @@ export function InboxSidebar({
   const { data: brands } = useBrandsQuery();
   const { data: counts } = useSidebarCounts();
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  const [lastSyncStatus, setLastSyncStatus] = useState<string | null>(null);
+  const [activeRunning, setActiveRunning] = useState(false);
+  const [localTriggering, setLocalTriggering] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+    const HEARTBEAT_STALE_MS = 60_000;
     const load = async () => {
-      const { data } = await supabase
+      const { data: acc } = await supabase
         .from("email_accounts")
         .select("last_sync_at, last_sync_status")
         .order("last_sync_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (mounted) setLastSync(data?.last_sync_at ?? null);
+      if (!mounted) return;
+      setLastSync(acc?.last_sync_at ?? null);
+      setLastSyncStatus(acc?.last_sync_status ?? null);
+
+      // Is there an actively running sync (fresh heartbeat) anywhere?
+      const cutoff = new Date(Date.now() - HEARTBEAT_STALE_MS).toISOString();
+      const { data: running } = await supabase
+        .from("sync_log")
+        .select("id")
+        .eq("status", "running")
+        .gte("last_heartbeat_at", cutoff)
+        .limit(1)
+        .maybeSingle();
+      if (mounted) setActiveRunning(!!running);
     };
     load();
-    const i = setInterval(load, 30000);
+    const i = setInterval(load, 5000);
     return () => {
       mounted = false;
       clearInterval(i);
     };
   }, []);
+
+  const syncing = activeRunning || localTriggering;
 
   const setView = (v: ViewKind) => {
     update({ view: v, brands: [] });
