@@ -510,7 +510,11 @@ export default function EmailAccountTab() {
               <RefreshCw
                 className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
               />
-              {syncing ? "Syncing…" : "Sync now"}
+              {syncing
+                ? syncProgress
+                  ? `Syncing… (${syncProgress.fetched}${syncProgress.batch > 1 ? `, batch ${syncProgress.batch}` : ""})`
+                  : "Syncing…"
+                : "Sync now"}
             </Button>
           </div>
         </div>
