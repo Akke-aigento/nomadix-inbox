@@ -750,34 +750,43 @@ export type Database = {
       }
       sync_log: {
         Row: {
+          batch_complete: boolean
           email_account_id: string | null
           error_message: string | null
           finished_at: string | null
           highest_uid_seen: number | null
           id: string
+          last_heartbeat_at: string | null
           messages_fetched: number | null
+          next_uid: number | null
           owner_user_id: string
           started_at: string
           status: string | null
         }
         Insert: {
+          batch_complete?: boolean
           email_account_id?: string | null
           error_message?: string | null
           finished_at?: string | null
           highest_uid_seen?: number | null
           id?: string
+          last_heartbeat_at?: string | null
           messages_fetched?: number | null
+          next_uid?: number | null
           owner_user_id?: string
           started_at?: string
           status?: string | null
         }
         Update: {
+          batch_complete?: boolean
           email_account_id?: string | null
           error_message?: string | null
           finished_at?: string | null
           highest_uid_seen?: number | null
           id?: string
+          last_heartbeat_at?: string | null
           messages_fetched?: number | null
+          next_uid?: number | null
           owner_user_id?: string
           started_at?: string
           status?: string | null
