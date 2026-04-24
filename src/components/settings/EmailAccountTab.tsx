@@ -38,7 +38,8 @@ const defaults: Omit<EmailAccount, "id" | "vault_secret_id" | "last_sync_at" | "
   };
 
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes safety
+const HEARTBEAT_STALE_MS = 60_000; // run is dead if no heartbeat in 60s
+const MAX_BATCHES = 20; // safety cap on auto-continued batches
 
 export default function EmailAccountTab() {
   const [account, setAccount] = useState<EmailAccount | null>(null);
@@ -47,11 +48,12 @@ export default function EmailAccountTab() {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ fetched: number; batch: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const pollTimerRef = useRef<number | null>(null);
-  const pollStartedAtRef = useRef<number>(0);
+  const cancelledRef = useRef(false);
 
   const clearPoll = () => {
     if (pollTimerRef.current !== null) {
@@ -61,7 +63,10 @@ export default function EmailAccountTab() {
   };
 
   useEffect(() => {
-    return () => clearPoll();
+    return () => {
+      cancelledRef.current = true;
+      clearPoll();
+    };
   }, []);
 
   const load = async () => {
@@ -102,16 +107,21 @@ export default function EmailAccountTab() {
       if (cancelled || !acc) return;
       const { data: running } = await supabase
         .from("sync_log")
-        .select("id")
+        .select("id, last_heartbeat_at")
         .eq("email_account_id", acc.id)
         .eq("status", "running")
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (!cancelled && running?.id) {
-        setSyncing(true);
-        pollStartedAtRef.current = Date.now();
-        pollSyncLog(running.id);
+        // Only resume if heartbeat is fresh; otherwise show stale + reset.
+        const hb = running.last_heartbeat_at
+          ? new Date(running.last_heartbeat_at).getTime()
+          : 0;
+        if (Date.now() - hb < HEARTBEAT_STALE_MS) {
+          setSyncing(true);
+          pollSyncLog(running.id, acc.id, 1);
+        }
       }
     })();
     return () => {
@@ -120,34 +130,58 @@ export default function EmailAccountTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pollSyncLog = (logId: string) => {
+  const pollSyncLog = (logId: string, accountId: string, batchNum: number) => {
     const tick = async () => {
-      if (Date.now() - pollStartedAtRef.current > POLL_TIMEOUT_MS) {
-        clearPoll();
-        setSyncing(false);
-        toast.error("Sync timed out — check logs");
-        await load();
-        return;
-      }
+      if (cancelledRef.current) return;
       const { data, error } = await supabase
         .from("sync_log")
-        .select("status, messages_fetched, error_message")
+        .select("status, messages_fetched, error_message, batch_complete, last_heartbeat_at")
         .eq("id", logId)
         .maybeSingle();
       if (error) {
         clearPoll();
         setSyncing(false);
+        setSyncProgress(null);
         toast.error(error.message);
         return;
       }
-      if (!data || data.status === "running") {
+      if (!data) {
+        clearPoll();
+        setSyncing(false);
+        setSyncProgress(null);
+        return;
+      }
+
+      // Stale heartbeat → treat as dead
+      const hb = data.last_heartbeat_at ? new Date(data.last_heartbeat_at).getTime() : 0;
+      if (data.status === "running" && Date.now() - hb > HEARTBEAT_STALE_MS) {
+        clearPoll();
+        setSyncing(false);
+        setSyncProgress(null);
+        toast.error("Sync stalled — no heartbeat for over 60s");
+        await load();
+        return;
+      }
+
+      if (data.status === "running") {
+        setSyncProgress({ fetched: data.messages_fetched ?? 0, batch: batchNum });
         pollTimerRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
         return;
       }
-      // Final state
+
+      // Final state for this batch
       clearPoll();
-      setSyncing(false);
       const fetched = data.messages_fetched ?? 0;
+
+      // If batch_complete is false and status is partial → auto-continue.
+      if (data.status === "partial" && data.batch_complete === false && batchNum < MAX_BATCHES) {
+        toast.info(`Batch ${batchNum} done (${fetched}) — continuing…`);
+        await continueBatch(accountId, batchNum + 1);
+        return;
+      }
+
+      setSyncing(false);
+      setSyncProgress(null);
       if (data.status === "ok") {
         toast.success(`Sync done — ${fetched} message${fetched === 1 ? "" : "s"} fetched`);
       } else if (data.status === "partial") {
@@ -160,6 +194,27 @@ export default function EmailAccountTab() {
       await load();
     };
     pollTimerRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
+  };
+
+  const continueBatch = async (accountId: string, batchNum: number) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-inbox", {
+        body: { account_id: accountId },
+      });
+      if (error) throw error;
+      const result = data as { sync_log_id?: string; error?: string };
+      if (!result.sync_log_id) {
+        setSyncing(false);
+        setSyncProgress(null);
+        toast.error(result.error ?? "Failed to continue sync");
+        return;
+      }
+      pollSyncLog(result.sync_log_id, accountId, batchNum);
+    } catch (err) {
+      setSyncing(false);
+      setSyncProgress(null);
+      toast.error(err instanceof Error ? err.message : "Continue failed");
+    }
   };
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
@@ -245,22 +300,24 @@ export default function EmailAccountTab() {
       return;
     }
     setSyncing(true);
+    setSyncProgress({ fetched: 0, batch: 1 });
     try {
       const { data, error } = await supabase.functions.invoke("sync-inbox", {
         body: { account_id: account.id },
       });
       if (error) throw error;
       const result = data as { sync_log_id?: string; error?: string };
-      if (result.error || !result.sync_log_id) {
+      if (!result.sync_log_id) {
         setSyncing(false);
+        setSyncProgress(null);
         toast.error(result.error ?? "Failed to start sync");
         return;
       }
       toast.info("Sync started — fetching new mail…");
-      pollStartedAtRef.current = Date.now();
-      pollSyncLog(result.sync_log_id);
+      pollSyncLog(result.sync_log_id, account.id, 1);
     } catch (err) {
       setSyncing(false);
+      setSyncProgress(null);
       toast.error(err instanceof Error ? err.message : "Sync failed");
     }
   };
