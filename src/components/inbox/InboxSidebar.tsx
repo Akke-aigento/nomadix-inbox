@@ -185,18 +185,19 @@ export function InboxSidebar({
       <div className="border-t border-border p-2">
         <button
           onClick={async () => {
-            setSyncing(true);
+            setLocalTriggering(true);
             try {
               const { data: accs } = await supabase.from("email_accounts").select("id");
               for (const a of accs || []) {
                 await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
               }
             } finally {
-              setSyncing(false);
+              setLocalTriggering(false);
             }
           }}
+          disabled={syncing}
           className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))]",
+            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
             collapsed && "justify-center",
           )}
         >
@@ -205,6 +206,8 @@ export function InboxSidebar({
             <span className="truncate">
               {syncing
                 ? "Syncing…"
+                : lastSyncStatus === "error"
+                ? "Sync failed — retry"
                 : lastSync
                 ? `Synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
                 : "Not synced yet"}
