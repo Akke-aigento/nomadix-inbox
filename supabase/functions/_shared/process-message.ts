@@ -94,31 +94,35 @@ export async function processMessage(
 
   if (insertErr) throw insertErr;
 
-  // Attachments
+  // Attachments — never let storage failures abort the message.
   for (const att of parsed.attachments ?? []) {
-    const safeName = (att.filename || "unnamed").replace(/[^\w.\-]+/g, "_");
-    const path = `${account.owner_user_id}/${message.id}/${safeName}`;
-    const { error: upErr } = await supabase.storage
-      .from("message-attachments")
-      .upload(path, att.content, {
-        contentType: att.contentType ?? "application/octet-stream",
-        upsert: false,
-      });
-    if (upErr) {
-      console.error("Attachment upload error:", upErr);
-      continue;
-    }
+    try {
+      const safeName = (att.filename || "unnamed").replace(/[^\w.\-]+/g, "_");
+      const path = `${account.owner_user_id}/${message.id}/${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from("message-attachments")
+        .upload(path, att.content, {
+          contentType: att.contentType ?? "application/octet-stream",
+          upsert: false,
+        });
+      if (upErr) {
+        console.error("Attachment upload error:", upErr.message ?? upErr);
+        continue;
+      }
 
-    await supabase.from("attachments").insert({
-      owner_user_id: account.owner_user_id,
-      message_id: message.id,
-      filename: att.filename ?? safeName,
-      mime_type: att.contentType ?? null,
-      size_bytes: att.size ?? null,
-      content_id: att.cid ?? null,
-      is_inline: att.contentDisposition === "inline",
-      storage_path: path,
-    });
+      await supabase.from("attachments").insert({
+        owner_user_id: account.owner_user_id,
+        message_id: message.id,
+        filename: att.filename ?? safeName,
+        mime_type: att.contentType ?? null,
+        size_bytes: att.size ?? null,
+        content_id: att.cid ?? null,
+        is_inline: att.contentDisposition === "inline",
+        storage_path: path,
+      });
+    } catch (e) {
+      console.error("Attachment processing error:", e);
+    }
   }
 
   // Run routing rules BEFORE updating thread stats so archive/mark-read
