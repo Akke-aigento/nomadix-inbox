@@ -145,23 +145,14 @@ export async function processMessage(
 
   await updateThreadStats(threadId, supabase);
 
-  // Fire-and-forget AI analysis. Failures are logged but never block sync.
+  // Mark message as needing AI analysis — actual AI runs separately, not in sync hot path
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (supabaseUrl && serviceKey) {
-      // Don't await — let it run in the background
-      fetch(`${supabaseUrl}/functions/v1/analyze-message`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceKey}`,
-        },
-        body: JSON.stringify({ message_id: message.id }),
-      }).catch((e) => console.error("analyze-message dispatch failed:", e));
-    }
+    await supabase
+      .from("messages")
+      .update({ needs_ai_analysis: true })
+      .eq("id", message.id);
   } catch (e) {
-    console.error("analyze-message dispatch error:", e);
+    console.error("Failed to mark needs_ai_analysis for", message.id, e);
   }
 
   return {

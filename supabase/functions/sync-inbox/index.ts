@@ -17,7 +17,7 @@ const corsHeaders = {
 // so we stay well under it.
 const MAX_BATCH_MS = 90_000;
 // Hard cap on messages processed per batch invocation (safety).
-const MAX_BATCH_MESSAGES = 50;
+const MAX_BATCH_MESSAGES = 5;
 // How often we update last_heartbeat_at while running.
 const HEARTBEAT_INTERVAL_MS = 5_000;
 // A run is "stale" if its heartbeat is older than this when a new sync starts.
