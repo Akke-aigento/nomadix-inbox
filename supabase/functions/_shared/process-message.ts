@@ -155,6 +155,17 @@ export async function processMessage(
     console.error("Failed to mark needs_ai_analysis for", message.id, e);
   }
 
+  if (detection.method === "unknown") {
+    try {
+      await supabase
+        .from("messages")
+        .update({ needs_brand_detection: true })
+        .eq("id", message.id);
+    } catch (e) {
+      console.error("Failed to mark needs_brand_detection for", message.id, e);
+    }
+  }
+
   return {
     status: "created",
     message_id: message.id,

@@ -150,11 +150,12 @@ export async function detectBrand(
     }
   }
 
-  // Tier 5: AI fallback
-  return await detectBrandViaAI(parsed, supabase);
+  // No header match — defer AI detection to background processing.
+  // Message will be flagged with needs_brand_detection in process-message.ts.
+  return { brand_id: null, method: "unknown", confidence: 0 };
 }
 
-async function detectBrandViaAI(
+async function _detectBrandViaAI(
   parsed: any,
   supabase: any,
 ): Promise<BrandDetectionResult> {

@@ -229,15 +229,13 @@ Deno.serve(async (req) => {
               { uid: true },
             )
           ) {
-            // Time/size budget — bail and let UI invoke another batch.
-            if (
-              Date.now() - startedAt > MAX_BATCH_MS ||
-              fetched >= MAX_BATCH_MESSAGES
-            ) {
+            // Check FIRST — never start a new message we cannot finish within budget.
+            const elapsed = Date.now() - startedAt;
+            if (elapsed > MAX_BATCH_MS || fetched >= MAX_BATCH_MESSAGES) {
               batchComplete = false;
               if (msg.uid) nextUid = msg.uid;
               console.log(
-                `[sync] log=${logId} yielding batch at uid=${msg.uid} fetched=${fetched}`,
+                `[sync] log=${logId} wall-clock budget hit after ${fetched} messages (elapsed=${elapsed}ms), yielding at uid=${msg.uid}`,
               );
               break;
             }
