@@ -208,6 +208,8 @@ export function InboxSidebar({
                 ? "Syncing…"
                 : lastSyncStatus === "error"
                 ? "Sync failed — retry"
+                : lastSyncStatus === "running"
+                ? "Sync in progress…"
                 : lastSync
                 ? `Synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
                 : "Not synced yet"}
