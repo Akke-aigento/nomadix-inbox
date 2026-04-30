@@ -190,13 +190,24 @@ export function InboxSidebar({
             setLocalTriggering(true);
             try {
               const { data: accs } = await supabase.from("email_accounts").select("id");
-              for (const a of accs || []) {
+              const accountList = accs || [];
+              let skipped = 0;
+              for (const a of accountList) {
+                const guard = await ensureNoActiveSync(a.id);
+                if (guard.ok === false) {
+                  skipped++;
+                  if (accountList.length === 1) toast.error(guard.reason);
+                  continue;
+                }
                 await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
+              }
+              if (skipped > 0 && accountList.length > 1) {
+                toast.info(`${skipped} account(s) overgeslagen — sync al bezig`);
               }
             } finally {
               setLocalTriggering(false);
             }
-          }}
+          }},
           disabled={syncing}
           className={cn(
             "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
