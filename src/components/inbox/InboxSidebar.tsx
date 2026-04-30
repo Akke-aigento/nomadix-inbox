@@ -20,6 +20,8 @@ import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { ensureNoActiveSync } from "@/lib/sync-guard";
 
 const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
   { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
