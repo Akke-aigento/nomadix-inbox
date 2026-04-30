@@ -338,6 +338,11 @@ export default function EmailAccountTab() {
       toast.error("Set a password and save before syncing");
       return;
     }
+    const guard = await ensureNoActiveSync(account.id);
+    if (guard.ok === false) {
+      toast.error(guard.reason);
+      return;
+    }
     setSyncing(true);
     setSyncProgress({ fetched: 0, batch: 1 });
     try {
