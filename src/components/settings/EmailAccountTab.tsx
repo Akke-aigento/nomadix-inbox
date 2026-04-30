@@ -230,6 +230,13 @@ export default function EmailAccountTab() {
 
   const continueBatch = async (accountId: string, batchNum: number) => {
     try {
+      const guard = await ensureNoActiveSync(accountId);
+      if (!guard.ok) {
+        setSyncing(false);
+        setSyncProgress(null);
+        toast.error(guard.reason);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("sync-inbox", {
         body: { account_id: accountId },
       });
