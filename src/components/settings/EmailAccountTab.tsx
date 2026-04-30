@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ensureNoActiveSync } from "@/lib/sync-guard";
 
 interface EmailAccount {
   id: string;
