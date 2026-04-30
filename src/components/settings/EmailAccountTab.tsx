@@ -132,6 +132,34 @@ export default function EmailAccountTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lightweight cross-tab poll: is there a fresh-heartbeat running sync for this account?
+  useEffect(() => {
+    if (!account?.id) {
+      setHasFreshActiveRun(false);
+      return;
+    }
+    let cancelled = false;
+    const accountId = account.id;
+    const check = async () => {
+      const cutoff = new Date(Date.now() - HEARTBEAT_STALE_MS).toISOString();
+      const { data } = await supabase
+        .from("sync_log")
+        .select("id")
+        .eq("email_account_id", accountId)
+        .eq("status", "running")
+        .gte("last_heartbeat_at", cutoff)
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) setHasFreshActiveRun(!!data);
+    };
+    check();
+    const i = window.setInterval(check, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(i);
+    };
+  }, [account?.id]);
+
   const pollSyncLog = (logId: string, accountId: string, batchNum: number) => {
     const tick = async () => {
       if (cancelledRef.current) return;
