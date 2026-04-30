@@ -231,7 +231,7 @@ export default function EmailAccountTab() {
   const continueBatch = async (accountId: string, batchNum: number) => {
     try {
       const guard = await ensureNoActiveSync(accountId);
-      if (!guard.ok) {
+      if (guard.ok === false) {
         setSyncing(false);
         setSyncProgress(null);
         toast.error(guard.reason);
