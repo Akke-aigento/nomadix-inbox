@@ -550,7 +550,7 @@ export default function EmailAccountTab() {
               <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
               {analyzing ? "Analyzing…" : "Analyze backlog"}
             </Button>
-            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account}>
+            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account || hasFreshActiveRun}>
               <RefreshCw
                 className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
               />
