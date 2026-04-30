@@ -20,6 +20,8 @@ import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { ensureNoActiveSync } from "@/lib/sync-guard";
 
 const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
   { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
@@ -188,8 +190,19 @@ export function InboxSidebar({
             setLocalTriggering(true);
             try {
               const { data: accs } = await supabase.from("email_accounts").select("id");
-              for (const a of accs || []) {
+              const accountList = accs || [];
+              let skipped = 0;
+              for (const a of accountList) {
+                const guard = await ensureNoActiveSync(a.id);
+                if (guard.ok === false) {
+                  skipped++;
+                  if (accountList.length === 1) toast.error(guard.reason);
+                  continue;
+                }
                 await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
+              }
+              if (skipped > 0 && accountList.length > 1) {
+                toast.info(`${skipped} account(s) overgeslagen — sync al bezig`);
               }
             } finally {
               setLocalTriggering(false);

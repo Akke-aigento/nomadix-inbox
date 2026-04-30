@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ensureNoActiveSync } from "@/lib/sync-guard";
 
 interface EmailAccount {
   id: string;
@@ -51,6 +52,7 @@ export default function EmailAccountTab() {
   const [syncProgress, setSyncProgress] = useState<{ fetched: number; batch: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasFreshActiveRun, setHasFreshActiveRun] = useState(false);
 
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
@@ -130,6 +132,34 @@ export default function EmailAccountTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lightweight cross-tab poll: is there a fresh-heartbeat running sync for this account?
+  useEffect(() => {
+    if (!account?.id) {
+      setHasFreshActiveRun(false);
+      return;
+    }
+    let cancelled = false;
+    const accountId = account.id;
+    const check = async () => {
+      const cutoff = new Date(Date.now() - HEARTBEAT_STALE_MS).toISOString();
+      const { data } = await supabase
+        .from("sync_log")
+        .select("id")
+        .eq("email_account_id", accountId)
+        .eq("status", "running")
+        .gte("last_heartbeat_at", cutoff)
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) setHasFreshActiveRun(!!data);
+    };
+    check();
+    const i = window.setInterval(check, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(i);
+    };
+  }, [account?.id]);
+
   const pollSyncLog = (logId: string, accountId: string, batchNum: number) => {
     const tick = async () => {
       if (cancelledRef.current) return;
@@ -200,6 +230,13 @@ export default function EmailAccountTab() {
 
   const continueBatch = async (accountId: string, batchNum: number) => {
     try {
+      const guard = await ensureNoActiveSync(accountId);
+      if (guard.ok === false) {
+        setSyncing(false);
+        setSyncProgress(null);
+        toast.error(guard.reason);
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("sync-inbox", {
         body: { account_id: accountId },
       });
@@ -299,6 +336,11 @@ export default function EmailAccountTab() {
     }
     if (!account.vault_secret_id) {
       toast.error("Set a password and save before syncing");
+      return;
+    }
+    const guard = await ensureNoActiveSync(account.id);
+    if (guard.ok === false) {
+      toast.error(guard.reason);
       return;
     }
     setSyncing(true);
@@ -508,7 +550,7 @@ export default function EmailAccountTab() {
               <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
               {analyzing ? "Analyzing…" : "Analyze backlog"}
             </Button>
-            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account}>
+            <Button onClick={syncNow} disabled={syncing || testing || analyzing || !account || hasFreshActiveRun}>
               <RefreshCw
                 className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`}
               />
