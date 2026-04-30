@@ -1,6 +1,10 @@
 // Pull new messages from Migadu via IMAP, parse, classify, persist.
-// Foreground batched sync with heartbeat. Returns when batch finishes
-// (or hits max time) — UI re-invokes if batch_complete=false.
+// True per-call UID-range batching:
+//   - one invocation fetches at most BATCH_SIZE messages from a bounded UID range
+//   - independent heartbeat timer
+//   - per-message timeout so one bad message can't kill the batch
+//   - hard wall-clock guard well under the platform 200s timeout
+//   - status 'batch_done' (more to do) vs 'ok' (caught up to server)
 
 import { ImapFlow } from "npm:imapflow@1.0.171";
 import { createClient } from "npm:@supabase/supabase-js@2.48.1";
@@ -12,13 +16,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// How long a single invocation will keep processing before yielding
-// the batch back to the UI. Edge functions have a hard ~150s wall clock,
-// so we stay well under it.
-const MAX_BATCH_MS = 90_000;
-// Hard cap on messages processed per batch invocation (safety).
-const MAX_BATCH_MESSAGES = 5;
-// How often we update last_heartbeat_at while running.
+// How many messages we try to process per invocation.
+const BATCH_SIZE = 10;
+// Hard wall-clock guard — break before the platform kills us at ~200s.
+const MAX_WALL_CLOCK_MS = 150_000;
+// Per-message timeout (parse + persist + attachments).
+const PER_MESSAGE_TIMEOUT_MS = 15_000;
+// Heartbeat update interval.
 const HEARTBEAT_INTERVAL_MS = 5_000;
 // A run is "stale" if its heartbeat is older than this when a new sync starts.
 const STALE_HEARTBEAT_MS = 60_000;
@@ -33,6 +37,12 @@ function json(body: unknown, status = 200) {
 function clampError(s: string | undefined | null, max = 500) {
   if (!s) return null;
   return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+function timeoutAfter(ms: number, label: string): Promise<never> {
+  return new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms)
+  );
 }
 
 Deno.serve(async (req) => {
@@ -91,32 +101,26 @@ Deno.serve(async (req) => {
       .lt("started_at", staleCutoff);
 
     // ─── Determine resume point ───
-    // Prefer next_uid from a recent partial run; otherwise use highest_uid_seen
-    // from the last successful run.
+    // Highest UID we've already successfully processed for this account.
+    // Look at the most recent ok/batch_done/partial run with a highest_uid_seen.
     let lastUid = 0;
-    const { data: lastPartial } = await supabase
+    const { data: lastProgress } = await supabase
       .from("sync_log")
-      .select("next_uid, highest_uid_seen")
+      .select("highest_uid_seen, next_uid, status")
       .eq("email_account_id", account_id)
-      .eq("status", "partial")
-      .not("next_uid", "is", null)
-      .order("finished_at", { ascending: false })
+      .in("status", ["ok", "batch_done", "partial"])
+      .not("highest_uid_seen", "is", null)
+      .order("finished_at", { ascending: false, nullsFirst: false })
       .limit(1)
       .maybeSingle();
 
-    if (lastPartial?.next_uid) {
-      lastUid = Number(lastPartial.next_uid) - 1;
-    } else {
-      const { data: lastOk } = await supabase
-        .from("sync_log")
-        .select("highest_uid_seen")
-        .eq("email_account_id", account_id)
-        .eq("status", "ok")
-        .not("highest_uid_seen", "is", null)
-        .order("finished_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      lastUid = Number(lastOk?.highest_uid_seen ?? 0);
+    if (lastProgress) {
+      // next_uid (if set) wins — it's the explicit "resume from here" pointer.
+      if (lastProgress.next_uid) {
+        lastUid = Number(lastProgress.next_uid) - 1;
+      } else {
+        lastUid = Number(lastProgress.highest_uid_seen ?? 0);
+      }
     }
 
     // ─── Open new sync_log row ───
@@ -128,7 +132,7 @@ Deno.serve(async (req) => {
         started_at: new Date().toISOString(),
         last_heartbeat_at: new Date().toISOString(),
         status: "running",
-        batch_complete: true,
+        batch_complete: false,
         messages_fetched: 0,
         highest_uid_seen: lastUid,
       })
@@ -143,26 +147,26 @@ Deno.serve(async (req) => {
     const logId = logEntry.id;
 
     console.log(
-      `[sync] start account=${account_id} log=${logId} resume_from_uid=${lastUid}`,
+      `[sync] start account=${account_id} log=${logId} resume_from_uid=${
+        lastUid + 1
+      }`,
     );
 
-    // ─── Heartbeat loop (background, light) ───
-    let stillRunning = true;
+    // ─── Independent heartbeat timer ───
     let heartbeatStats = { fetched: 0, highestUid: lastUid };
-    const heartbeat = setInterval(async () => {
-      if (!stillRunning) return;
-      try {
-        await supabase
-          .from("sync_log")
-          .update({
-            last_heartbeat_at: new Date().toISOString(),
-            messages_fetched: heartbeatStats.fetched,
-            highest_uid_seen: heartbeatStats.highestUid,
-          })
-          .eq("id", logId);
-      } catch (e) {
-        console.error("[sync] heartbeat update failed:", e);
-      }
+    const heartbeat = setInterval(() => {
+      // fire-and-forget; never block sync loop on heartbeat
+      supabase
+        .from("sync_log")
+        .update({
+          last_heartbeat_at: new Date().toISOString(),
+          messages_fetched: heartbeatStats.fetched,
+          highest_uid_seen: heartbeatStats.highestUid,
+        })
+        .eq("id", logId)
+        .then(({ error }) => {
+          if (error) console.error("[sync] heartbeat update failed:", error.message);
+        });
     }, HEARTBEAT_INTERVAL_MS);
 
     // ─── Fetch password ───
@@ -171,7 +175,6 @@ Deno.serve(async (req) => {
       { p_account_id: account_id },
     );
     if (pwErr || !password) {
-      stillRunning = false;
       clearInterval(heartbeat);
       const msg = `Password fetch: ${pwErr?.message ?? "no secret"}`;
       await supabase
@@ -195,13 +198,14 @@ Deno.serve(async (req) => {
       return json({ sync_log_id: logId, status: "error", error: msg }, 200);
     }
 
-    // ─── Run the actual IMAP fetch in foreground, batched ───
+    // ─── Run the actual IMAP fetch in foreground, single bounded batch ───
     let fetched = 0;
     let created = 0;
     let skipped = 0;
     let highestUid = lastUid;
     let nextUid: number | null = null;
-    let batchComplete = true;
+    let serverHighestUid = lastUid;
+    let moreToDo = false;
     const errors: string[] = [];
     let crashed: string | null = null;
 
@@ -219,45 +223,80 @@ Deno.serve(async (req) => {
         const lock = await client.getMailboxLock("INBOX");
 
         try {
-          const range = lastUid > 0 ? `${lastUid + 1}:*` : "1:*";
-          console.log(`[sync] log=${logId} fetch range=${range}`);
+          // Discover server's highest UID via mailbox status (uidNext - 1).
+          const status = await client.status("INBOX", { uidNext: true, messages: true });
+          const uidNext = Number((status as any)?.uidNext ?? 0);
+          serverHighestUid = uidNext > 0 ? uidNext - 1 : 0;
 
-          for await (
-            const msg of client.fetch(
-              range,
-              { source: true, uid: true, internalDate: true },
-              { uid: true },
-            )
-          ) {
-            // Check FIRST — never start a new message we cannot finish within budget.
-            const elapsed = Date.now() - startedAt;
-            if (elapsed > MAX_BATCH_MS || fetched >= MAX_BATCH_MESSAGES) {
-              batchComplete = false;
-              if (msg.uid) nextUid = msg.uid;
-              console.log(
-                `[sync] log=${logId} wall-clock budget hit after ${fetched} messages (elapsed=${elapsed}ms), yielding at uid=${msg.uid}`,
-              );
-              break;
+          const resumeFromUid = lastUid + 1;
+
+          if (serverHighestUid < resumeFromUid) {
+            console.log(
+              `[sync] log=${logId} nothing new (server_highest=${serverHighestUid}, resume_from=${resumeFromUid})`,
+            );
+          } else {
+            const endUid = Math.min(
+              serverHighestUid,
+              resumeFromUid + BATCH_SIZE - 1,
+            );
+            const range = `${resumeFromUid}:${endUid}`;
+            console.log(
+              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid}`,
+            );
+
+            for await (
+              const msg of client.fetch(
+                range,
+                { source: true, uid: true, internalDate: true },
+                { uid: true },
+              )
+            ) {
+              const elapsed = Date.now() - startedAt;
+              if (elapsed > MAX_WALL_CLOCK_MS) {
+                console.log(
+                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms, yielding at uid=${msg.uid}`,
+                );
+                if (msg.uid) nextUid = msg.uid;
+                moreToDo = true;
+                break;
+              }
+
+              const uid = msg.uid ?? 0;
+              const t0 = Date.now();
+              try {
+                await Promise.race([
+                  processMessage(msg.source, uid, "INBOX", account_id, supabase),
+                  timeoutAfter(PER_MESSAGE_TIMEOUT_MS, `processMessage uid=${uid}`),
+                ]).then((result: any) => {
+                  if (result?.status === "created") created++;
+                  else if (result?.status === "skipped_duplicate") skipped++;
+                });
+                console.log(
+                  `[sync] processed UID ${uid} in ${Date.now() - t0}ms`,
+                );
+              } catch (err: any) {
+                const m = err?.message ?? String(err);
+                console.error(
+                  `[sync] log=${logId} uid=${uid} failed in ${
+                    Date.now() - t0
+                  }ms:`,
+                  m,
+                );
+                errors.push(`UID ${uid}: ${m}`);
+              }
+
+              fetched++;
+              if (uid > highestUid) highestUid = uid;
+              heartbeatStats = { fetched, highestUid };
             }
 
-            fetched++;
-            if (msg.uid && msg.uid > highestUid) highestUid = msg.uid;
-            heartbeatStats = { fetched, highestUid };
-
-            try {
-              const result = await processMessage(
-                msg.source,
-                msg.uid ?? 0,
-                "INBOX",
-                account_id,
-                supabase,
-              );
-              if (result.status === "created") created++;
-              else if (result.status === "skipped_duplicate") skipped++;
-            } catch (err: any) {
-              const m = err?.message ?? String(err);
-              console.error(`[sync] log=${logId} uid=${msg.uid} failed:`, m);
-              errors.push(`UID ${msg.uid}: ${m}`);
+            // After the bounded fetch loop, are there still UIDs left after this batch?
+            if (!moreToDo) {
+              const lastProcessedUid = highestUid > 0 ? highestUid : endUid;
+              if (serverHighestUid > lastProcessedUid) {
+                moreToDo = true;
+                nextUid = lastProcessedUid + 1;
+              }
             }
           }
         } finally {
@@ -273,23 +312,40 @@ Deno.serve(async (req) => {
       crashed = err?.message ?? String(err);
       console.error(`[sync] log=${logId} fatal:`, crashed);
     } finally {
-      stillRunning = false;
       clearInterval(heartbeat);
     }
 
     // ─── Finalize ───
-    let status: "ok" | "partial" | "error" = "ok";
-    if (crashed) status = "error";
-    else if (!batchComplete) status = "partial";
-    else if (errors.length > 0 && fetched === 0) status = "error";
-    else if (errors.length > 0 && errors.length === fetched) status = "error";
-    else if (errors.length > 0) status = "partial";
+    // Status semantics:
+    //   error     — crash, or every attempted message failed
+    //   batch_done — bounded batch finished, more UIDs to process (UI re-invokes)
+    //   ok        — caught up to server (no more UIDs)
+    //   partial   — finished but some messages errored (still caught up)
+    let status: "ok" | "batch_done" | "partial" | "error" = "ok";
+    if (crashed) {
+      status = "error";
+    } else if (errors.length > 0 && fetched === 0) {
+      status = "error";
+    } else if (errors.length > 0 && errors.length === fetched) {
+      status = "error";
+    } else if (moreToDo) {
+      status = "batch_done";
+    } else if (errors.length > 0) {
+      status = "partial";
+    } else {
+      status = "ok";
+    }
 
     const errorMsg = crashed
       ? `Crash: ${crashed}`
       : errors.length > 0
       ? errors.join("; ")
       : null;
+
+    const totalElapsed = Date.now() - startedAt;
+    console.log(
+      `[sync] batch done log=${logId} status=${status} fetched=${fetched} created=${created} skipped=${skipped} errors=${errors.length} next_uid=${nextUid} elapsed=${totalElapsed}ms`,
+    );
 
     await supabase
       .from("sync_log")
@@ -300,31 +356,33 @@ Deno.serve(async (req) => {
         messages_fetched: fetched,
         highest_uid_seen: highestUid,
         next_uid: nextUid,
-        batch_complete: batchComplete,
+        batch_complete: true,
         error_message: clampError(errorMsg, 1000),
       })
       .eq("id", logId);
+
+    // Account-level status: only mark 'ok' on a true full catch-up.
+    // 'batch_done' is an intermediate state — keep it visible but not "error".
+    const accountStatus =
+      status === "batch_done" ? "running" : status === "partial" ? "partial" : status;
 
     await supabase
       .from("email_accounts")
       .update({
         last_sync_at: new Date().toISOString(),
-        last_sync_status: status,
+        last_sync_status: accountStatus,
         last_sync_error: clampError(errorMsg, 500),
       })
       .eq("id", account_id);
-
-    console.log(
-      `[sync] done log=${logId} status=${status} fetched=${fetched} created=${created} skipped=${skipped} errors=${errors.length} batch_complete=${batchComplete}`,
-    );
 
     return json(
       {
         sync_log_id: logId,
         status,
         messages_fetched: fetched,
-        batch_complete: batchComplete,
+        more_to_do: moreToDo,
         next_uid: nextUid,
+        server_highest_uid: serverHighestUid,
         error: errorMsg,
       },
       200,

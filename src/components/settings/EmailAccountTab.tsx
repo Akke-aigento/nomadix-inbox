@@ -173,8 +173,8 @@ export default function EmailAccountTab() {
       clearPoll();
       const fetched = data.messages_fetched ?? 0;
 
-      // If batch_complete is false and status is partial → auto-continue.
-      if (data.status === "partial" && data.batch_complete === false && batchNum < MAX_BATCHES) {
+      // batch_done → more UIDs left, auto-continue with next invocation.
+      if (data.status === "batch_done" && batchNum < MAX_BATCHES) {
         toast.info(`Batch ${batchNum} done (${fetched}) — continuing…`);
         await continueBatch(accountId, batchNum + 1);
         return;
@@ -184,6 +184,8 @@ export default function EmailAccountTab() {
       setSyncProgress(null);
       if (data.status === "ok") {
         toast.success(`Sync done — ${fetched} message${fetched === 1 ? "" : "s"} fetched`);
+      } else if (data.status === "batch_done") {
+        toast.warning(`Stopped after ${MAX_BATCHES} batches — click Sync again to continue`);
       } else if (data.status === "partial") {
         toast.warning(
           `Sync partial — ${fetched} fetched${data.error_message ? `: ${data.error_message}` : ""}`,
