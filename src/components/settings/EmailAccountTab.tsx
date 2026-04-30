@@ -52,6 +52,7 @@ export default function EmailAccountTab() {
   const [syncProgress, setSyncProgress] = useState<{ fetched: number; batch: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasFreshActiveRun, setHasFreshActiveRun] = useState(false);
 
   const pollTimerRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
