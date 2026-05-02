@@ -279,24 +279,55 @@ Deno.serve(async (req) => {
               `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid}`,
             );
 
-            for await (
-              const msg of client.fetch(
-                range,
-                { source: true, uid: true, internalDate: true },
-                { uid: true },
-              )
-            ) {
+            // Manual iteration so we can put a timeout around EACH stream
+            // step (not just processMessage). If the IMAP stream hangs
+            // between messages — which is what was happening — we abort the
+            // batch instead of letting the function time out at 150s.
+            const iter: AsyncIterator<any> = (client.fetch(
+              range,
+              { source: true, uid: true, internalDate: true },
+              { uid: true },
+            ) as any)[Symbol.asyncIterator]();
+
+            let lastSeenUidInRange = resumeFromUid - 1;
+
+            while (true) {
               const elapsed = Date.now() - startedAt;
               if (elapsed > MAX_WALL_CLOCK_MS) {
                 console.log(
-                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms, yielding at uid=${msg.uid}`,
+                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms`,
                 );
-                if (msg.uid) nextUid = msg.uid;
                 moreToDo = true;
+                nextUid = lastSeenUidInRange + 1;
                 break;
               }
 
+              let step: IteratorResult<any>;
+              try {
+                step = await Promise.race([
+                  iter.next(),
+                  timeoutAfter(
+                    PER_FETCH_STEP_TIMEOUT_MS,
+                    `IMAP fetch next() after uid=${lastSeenUidInRange}`,
+                  ),
+                ]);
+              } catch (err: any) {
+                const m = err?.message ?? String(err);
+                console.error(
+                  `[sync] log=${logId} stream stalled after uid=${lastSeenUidInRange}: ${m}`,
+                );
+                errors.push(`IMAP stall after UID ${lastSeenUidInRange}: ${m}`);
+                // Yield gracefully — next cron tick resumes from here.
+                moreToDo = true;
+                nextUid = lastSeenUidInRange + 1;
+                break;
+              }
+
+              if (step.done) break;
+              const msg = step.value;
               const uid = msg.uid ?? 0;
+              if (uid > lastSeenUidInRange) lastSeenUidInRange = uid;
+
               const t0 = Date.now();
               try {
                 await Promise.race([
@@ -321,11 +352,20 @@ Deno.serve(async (req) => {
               }
 
               fetched++;
-              // Always advance past this UID — even on error/timeout — so a
-              // single poison message can't block the entire sync forever.
               if (uid > highestUid) highestUid = uid;
               heartbeatStats = { fetched, highestUid };
             }
+
+            // Defensive: try to drain/close the iterator so we don't leak it.
+            try {
+              if (typeof (iter as any).return === "function") {
+                await Promise.race([
+                  (iter as any).return(),
+                  timeoutAfter(2_000, "iterator return"),
+                ]).catch(() => {});
+              }
+            } catch { /* ignore */ }
+
 
             // After the bounded fetch loop, are there still UIDs left after this batch?
             if (!moreToDo) {
