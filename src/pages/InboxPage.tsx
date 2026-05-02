@@ -197,12 +197,8 @@ export default function InboxPage() {
       )}
 
       {!isMobile ? (
-        <ResizablePanelGroup
-          direction="horizontal"
-          className="flex-1"
-          autoSaveId="inbox-panels-v2"
-        >
-          <ResizablePanel id="list" order={1} minSize={24} defaultSize={36}>
+        <ResizablePanelGroup orientation="horizontal" className="flex-1">
+          <ResizablePanel id="list" minSize={24} defaultSize={36}>
             <div className="relative h-full">
               <ThreadList
                 threads={sortedThreads}
