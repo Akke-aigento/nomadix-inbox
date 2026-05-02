@@ -62,14 +62,16 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify caller owns this account (using their JWT)
+    // Detect service-role caller (used by pg_cron auto-sync). Service-role
+    // requests skip the per-user JWT check and operate on behalf of the
+    // account's owner.
     const authHeader = req.headers.get("Authorization") ?? "";
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-    const { data: userRes } = await userClient.auth.getUser();
-    if (!userRes?.user) return json({ error: "Unauthorized" }, 401);
+    const apiKeyHeader = req.headers.get("apikey") ?? "";
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7)
+      : "";
+    const isServiceRole =
+      bearerToken === SERVICE_KEY || apiKeyHeader === SERVICE_KEY;
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false },
@@ -81,8 +83,17 @@ Deno.serve(async (req) => {
       .eq("id", account_id)
       .single();
     if (accErr || !account) return json({ error: "Account not found" }, 404);
-    if (account.owner_user_id !== userRes.user.id) {
-      return json({ error: "Forbidden" }, 403);
+
+    if (!isServiceRole) {
+      const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
+      });
+      const { data: userRes } = await userClient.auth.getUser();
+      if (!userRes?.user) return json({ error: "Unauthorized" }, 401);
+      if (account.owner_user_id !== userRes.user.id) {
+        return json({ error: "Forbidden" }, 403);
+      }
     }
 
     // ─── Reap stale "running" rows based on heartbeat ───

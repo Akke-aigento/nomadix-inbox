@@ -1,48 +1,54 @@
-# Voorkomen van parallelle sync-runs
+## Wat is er aan de hand
 
-## Probleem
-De UI kan op dit moment een tweede `sync-inbox` invoke starten terwijl er nog een actieve `sync_log` row met status `running` bestaat. Resultaat: dubbele IMAP-connecties naar Migadu, zombie sync_log rows en kapotte progress.
+In de DB zie ik nog altijd één `sync_log` row met `status='running'` van **30 april 06:34** met laatste heartbeat **06:37** — die is nooit afgesloten. Resultaat:
+- De `ensureNoActiveSync` guard ziet een "actieve" run (heartbeat is wel ouder dan 60s, dus zou opgeruimd moeten worden), maar de UI poll-loop in `EmailAccountTab` zet `hasFreshActiveRun=false` correct. Het echte probleem is dat de sync edge function helemaal **geen logs meer produceert** voor recente runs — `supabase--edge_function_logs` retourneert leeg. Dat duidt erop dat de invoke vanuit de browser nooit echt land bij een nieuwe deploy, of dat hij meteen crasht voor de eerste `console.log`.
+- Bovendien is er sinds 30 april niemand meer manueel op "Sync now" geklikt: er staat geen nieuwe run na die datum. Dus "die sync blijft hangen" gaat in de praktijk over die ene oude row én over het feit dat er geen automatisme is dat de sync trekt.
 
-Sync wordt vanuit twee plekken getriggerd:
-- `src/components/settings/EmailAccountTab.tsx` → `syncNow()` en `continueBatch()` (auto-resume bij `batch_done`)
-- `src/components/inbox/InboxSidebar.tsx` → footer "Sync now" knop loopt over alle accounts
+De bestaande batched/heartbeat-code in `supabase/functions/sync-inbox/index.ts` is op zich solide (UID-range max 10, wall-clock guard 150s, per-message timeout 15s, heartbeat elke 5s, stale-row reaper). Wat ontbreekt is: **automatisch periodiek triggeren** zodat we niet meer afhangen van de UI-knop.
 
-## Aanpak
+## Doel
 
-### 1. Gedeelde guard-helper
-Nieuwe utility (bv. `src/lib/sync-guard.ts`) met één functie:
+Eén sluitende oplossing:
+1. Database opschonen + zombie-row killen.
+2. **Automatische sync elke minuut** via `pg_cron` + `pg_net` die de `sync-inbox` edge function aanroept per actief account. Geen UI nodig, geen browser nodig, geen IMAP IDLE nodig.
+3. UI blijft werken zoals nu (Sync now + auto-poll), maar wordt secundair.
+4. Snelle health-check zodat we zien dát het cron-job effectief draait.
 
-```
-ensureNoActiveSync(accountId): Promise<{ ok: true } | { ok: false; reason: string }>
-```
+## Stappen
 
-Logica:
-- Query `sync_log` op `email_account_id = accountId`, `status = 'running'`, nieuwste eerst, limit 1.
-- Geen row → `ok: true`.
-- Row met `last_heartbeat_at` jonger dan 60s → `ok: false` met reden "Sync al bezig".
-- Row met stale heartbeat (≥ 60s of `null`) → markeer die row als `status='error'`, `finished_at=now()`, `error_message='Stale run cleared on retry'`, dan `ok: true`.
+### 1. Edge function: service-role-trigger toelaten
+Op dit moment vereist `sync-inbox` een user JWT (`userClient.auth.getUser()` → 401 zonder Bearer). pg_cron kan geen user-JWT presenteren. Aanpassing:
+- Detecteer of de aanroep komt met de **service role key** (header `apikey` of `Authorization: Bearer <SERVICE_ROLE>`). Indien ja → sla user-check over en gebruik `account.owner_user_id` rechtstreeks.
+- Indien neen → bestaande user-flow behouden.
 
-Centraliseren voorkomt drift tussen Settings en Sidebar.
+### 2. Cron job toevoegen (via insert-tool, niet migration, want bevat project-specifieke URL+key)
+- `pg_cron` en `pg_net` extensies enablen indien nodig.
+- Eén SQL-functie `public.trigger_inbox_sync_for_all_accounts()` die voor elk account in `email_accounts` met een `vault_secret_id`:
+  - Checkt of er al een run met heartbeat < 60s loopt → skip.
+  - Anders: `net.http_post` naar `https://tvynbrtmohuciybwwzzl.functions.supabase.co/sync-inbox` met body `{"account_id": "..."}` en service-role headers.
+- `cron.schedule('inbox-sync-every-minute', '* * * * *', $$select public.trigger_inbox_sync_for_all_accounts();$$)`.
 
-### 2. EmailAccountTab.tsx aanpassingen
-- In `syncNow()`: roep `ensureNoActiveSync(account.id)` aan vóór `supabase.functions.invoke('sync-inbox', …)`. Bij `ok:false` → `toast.error(reason)` en return zonder state-mutatie.
-- In `continueBatch()` (auto-resume bij `batch_done`): zelfde guard vóór de invoke. Voorkomt dubbelvuren als de gebruiker tegelijk handmatig klikt.
-- "Sync now" button: `disabled` baseren op `syncing || activeRunFresh`, waarbij `activeRunFresh` uit een lichte poll/subscribe op `sync_log` komt (we hebben al de poller; voeg een aparte state `hasFreshActiveRun` toe die `true` is zolang de laatste running-row een verse heartbeat heeft, ook als deze tab níet de invoker was).
+### 3. Zombie cleanup nu meteen
+Eenmalig SQL-update om alle huidige `running`-rows met heartbeat ouder dan 60s op `error` te zetten met `error_message='Cleanup voor live sync rollout'`. Dat haalt de UI-blokkade meteen weg.
 
-### 3. InboxSidebar.tsx aanpassingen
-- De footer-knop loopt nu over alle accounts in een `for`-loop. Per iteratie eerst `ensureNoActiveSync(a.id)` en account skippen (met toast bij 1 account, stille skip bij meerdere) als er een verse run is.
-- Bestaande `activeRunning` state blijft de visuele disable-trigger; geen wijziging nodig daar.
+### 4. UI cosmetisch
+- `InboxSidebar` voetlabel toont al "Synced X ago"; dat zal nu vanzelf elke ~minuut updaten.
+- Geen functionele wijzigingen aan `EmailAccountTab` of `sync-guard.ts` nodig — die blijven werken.
 
-### 4. Edge case: race tussen guard-query en invoke
-Tussen de guard-check en de `invoke` zou theoretisch een tweede client kunnen starten. Voor nu accepteren we dit (UI-only fix zoals gevraagd). Als het in de praktijk nog voorkomt, kunnen we later een DB-side advisory lock of een `unique partial index` op `sync_log(email_account_id) where status='running'` toevoegen — buiten scope nu.
+### 5. Verificatie
+- Direct na deploy: `select cron.job_run_details ...` controleren dat er minuutruns staan.
+- Edge function logs van `sync-inbox` opvragen → verwacht regelmatige `[sync] start`-regels.
+- `select * from sync_log order by started_at desc limit 5;` → verwacht status `ok` of `batch_done` rotatie, geen `running`-rij ouder dan 2 minuten.
+- Test door een mail te sturen naar `info@vanxcel.be` en binnen ±60s in de DB de nieuwe `messages`-rij te zien.
 
-## Bestanden
-- nieuw: `src/lib/sync-guard.ts`
-- gewijzigd: `src/components/settings/EmailAccountTab.tsx`
-- gewijzigd: `src/components/inbox/InboxSidebar.tsx`
+## Technische notities
 
-## Validatie
-- Klik "Sync now" → start. Klik direct nogmaals → toast "Sync al bezig".
-- Forceer stale row (heartbeat > 60s oud) → klik "Sync now" → oude row krijgt `status='error'`, nieuwe sync start.
-- Trigger sync vanuit Settings, klik tijdens run op Sidebar-footer-knop → geblokkeerd.
-- Tijdens auto-resume na `batch_done` handmatig klikken → tweede invoke wordt door guard geweigerd.
+- Edge-function timeout (~200s) blijft gerespecteerd: één run = max 10 mails, vroege break op 150s. Bij `batch_done` triggert de volgende cron-tick (binnen 60s) gewoon de volgende batch — geen client nodig.
+- Service-role detectie: vergelijk `req.headers.get('apikey')` met `SUPABASE_SERVICE_ROLE_KEY` in env. Bij match → admin-pad.
+- `pg_net.http_post` is fire-and-forget; we negeren de response in de cron functie.
+- Alle SQL die de service role key bevat gaat via de **insert-tool** (niet migration), omdat dit projectspecifieke geheimen bevat die niet in een gedeelde migratie horen.
+
+## Wat er NIET gebeurt
+- Geen overstap naar Inngest of een queue-tabel — overkill voor 1 cron-tick per minuut.
+- Geen IMAP IDLE / true push — vereist een persistent process dat we hier niet hebben.
+- Geen wijziging aan de batched fetch-logica zelf; die werkt en is bewezen veilig binnen de timeout.
