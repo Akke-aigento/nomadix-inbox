@@ -2,6 +2,7 @@
 // Designed to run for up to ~140s and pull as many messages as possible in one go.
 // Safe to call repeatedly: resumes from highest UID we already have in `messages`.
 
+import { Buffer } from "node:buffer";
 import { createClient } from "npm:@supabase/supabase-js@2.48.1";
 import { ImapDirectClient } from "../_shared/imap-direct.ts";
 import { processMessage } from "../_shared/process-message.ts";
@@ -221,8 +222,9 @@ Deno.serve(async (req) => {
           }
 
           try {
+            const buf = Buffer.from(msg.source);
             const result: any = await Promise.race([
-              processMessage(msg.source, uid, "INBOX", account_id, supabase),
+              processMessage(buf, uid, "INBOX", account_id, supabase),
               timeoutAfter(PER_PROCESS_TIMEOUT_MS, `process uid=${uid}`),
             ]);
             if (result?.status === "created") created++;
