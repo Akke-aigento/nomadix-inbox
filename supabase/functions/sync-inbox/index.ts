@@ -17,7 +17,7 @@ const corsHeaders = {
 };
 
 // How many messages we try to process per invocation.
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 // Hard wall-clock guard. Must be < STALE_HEARTBEAT_MS so we always finalize
 // our own run before the reaper in the next cron tick declares us stale.
 const MAX_WALL_CLOCK_MS = 30_000;
