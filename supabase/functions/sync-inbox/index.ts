@@ -17,12 +17,15 @@ const corsHeaders = {
 };
 
 // How many messages we try to process per invocation.
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 // Hard wall-clock guard. Must be < STALE_HEARTBEAT_MS so we always finalize
 // our own run before the reaper in the next cron tick declares us stale.
-const MAX_WALL_CLOCK_MS = 45_000;
+const MAX_WALL_CLOCK_MS = 30_000;
 // Per-message timeout (parse + persist + attachments).
-const PER_MESSAGE_TIMEOUT_MS = 15_000;
+const PER_MESSAGE_TIMEOUT_MS = 12_000;
+// Per-fetch-step timeout: how long we wait for the IMAP stream to yield
+// the NEXT message before we give up on this batch entirely.
+const PER_FETCH_STEP_TIMEOUT_MS = 15_000;
 // Heartbeat update interval.
 const HEARTBEAT_INTERVAL_MS = 5_000;
 // A run is "stale" if its heartbeat is older than this when a new sync starts.
