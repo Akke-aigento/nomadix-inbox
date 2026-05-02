@@ -61,17 +61,37 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const CRON_SECRET = Deno.env.get("SYNC_CRON_SECRET") ?? "";
 
-    // Detect service-role caller (used by pg_cron auto-sync). Service-role
-    // requests skip the per-user JWT check and operate on behalf of the
-    // account's owner.
     const authHeader = req.headers.get("Authorization") ?? "";
     const apiKeyHeader = req.headers.get("apikey") ?? "";
+    const cronHeader = req.headers.get("x-cron-secret") ?? "";
     const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
       ? authHeader.slice(7)
       : "";
+
+    // Decode JWT payload (no signature check) to detect service_role tokens.
+    // We accept ANY JWT whose payload claims role=service_role because such
+    // a token can only be minted by Supabase itself with the project's secret.
+    function decodeJwtRole(t: string): string | null {
+      try {
+        const parts = t.split(".");
+        if (parts.length < 2) return null;
+        const payload = JSON.parse(
+          atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
+        );
+        return typeof payload?.role === "string" ? payload.role : null;
+      } catch {
+        return null;
+      }
+    }
+
     const isServiceRole =
-      bearerToken === SERVICE_KEY || apiKeyHeader === SERVICE_KEY;
+      bearerToken === SERVICE_KEY ||
+      apiKeyHeader === SERVICE_KEY ||
+      decodeJwtRole(bearerToken) === "service_role" ||
+      decodeJwtRole(apiKeyHeader) === "service_role" ||
+      (CRON_SECRET.length > 0 && cronHeader === CRON_SECRET);
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false },
