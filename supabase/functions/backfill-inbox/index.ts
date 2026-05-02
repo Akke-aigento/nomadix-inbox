@@ -56,7 +56,31 @@ Deno.serve(async (req) => {
     // ─── Auth: caller must be the account owner OR service role ───
     const authHeader = req.headers.get("Authorization") ?? "";
     const apiKeyHeader = req.headers.get("apikey") ?? "";
+    const cronHeader = req.headers.get("x-cron-secret") ?? "";
+    const CRON_SECRET = Deno.env.get("SYNC_CRON_SECRET") ?? "";
     const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7) : "";
+
+    function decodeJwtRole(t: string): string | null {
+      try {
+        const parts = t.split(".");
+        if (parts.length < 2) return null;
+        const payload = JSON.parse(
+          atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
+        );
+        return typeof payload?.role === "string" ? payload.role : null;
+      } catch {
+        return null;
+      }
+    }
+
+    const isServiceRole =
+      bearer === SERVICE_KEY ||
+      apiKeyHeader === SERVICE_KEY ||
+      decodeJwtRole(bearer) === "service_role" ||
+      decodeJwtRole(apiKeyHeader) === "service_role" ||
+      (CRON_SECRET.length > 0 && cronHeader === CRON_SECRET);
+
+    console.log(`[backfill] auth: isServiceRole=${isServiceRole} bearer_len=${bearer.length} apikey_len=${apiKeyHeader.length}`);
 
     const { data: account, error: accErr } = await supabase
       .from("email_accounts")
@@ -65,7 +89,6 @@ Deno.serve(async (req) => {
       .single();
     if (accErr || !account) return json({ error: "Account not found" }, 404);
 
-    const isServiceRole = bearer === SERVICE_KEY || apiKeyHeader === SERVICE_KEY;
     if (!isServiceRole) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: authHeader } },
