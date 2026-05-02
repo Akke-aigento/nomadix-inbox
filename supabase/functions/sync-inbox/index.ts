@@ -254,8 +254,14 @@ Deno.serve(async (req) => {
       });
 
       try {
-        await client.connect();
-        const lock = await client.getMailboxLock("INBOX");
+        await Promise.race([
+          client.connect(),
+          timeoutAfter(15_000, "imap connect"),
+        ]);
+        const lock = await Promise.race([
+          client.getMailboxLock("INBOX"),
+          timeoutAfter(10_000, "imap getMailboxLock"),
+        ]) as any;
 
         try {
           // Discover server's highest UID via mailbox status (uidNext - 1).
