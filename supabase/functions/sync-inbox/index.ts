@@ -17,7 +17,7 @@ const corsHeaders = {
 };
 
 // How many messages we try to process per invocation.
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 10;
 // Hard wall-clock guard. Must be < STALE_HEARTBEAT_MS so we always finalize
 // our own run before the reaper in the next cron tick declares us stale.
 const MAX_WALL_CLOCK_MS = 30_000;
@@ -244,178 +244,170 @@ Deno.serve(async (req) => {
     const errors: string[] = [];
     let crashed: string | null = null;
 
-    try {
-      const client = new ImapFlow({
+    // Helper: open a fresh IMAP connection. We connect/logout PER UID
+    // because ImapFlow on Deno reliably stalls on the 2nd fetchOne over the
+    // same connection (TCP backpressure deadlock with source: true).
+    const openImap = async () => {
+      const c = new ImapFlow({
         host: account.imap_host,
         port: account.imap_port,
         secure: account.imap_use_tls,
         auth: { user: account.username, pass: String(password) },
         logger: false,
       });
+      await Promise.race([c.connect(), timeoutAfter(15_000, "imap connect")]);
+      return c;
+    };
 
+    const persistProgress = async (advanceTo: number) => {
+      if (advanceTo > highestUid) highestUid = advanceTo;
+      heartbeatStats = { fetched, highestUid };
       try {
-        await Promise.race([
-          client.connect(),
-          timeoutAfter(15_000, "imap connect"),
-        ]);
-        const lock = await Promise.race([
-          client.getMailboxLock("INBOX"),
-          timeoutAfter(10_000, "imap getMailboxLock"),
-        ]) as any;
+        await supabase
+          .from("sync_log")
+          .update({
+            last_heartbeat_at: new Date().toISOString(),
+            messages_fetched: fetched,
+            highest_uid_seen: highestUid,
+            next_uid: highestUid + 1,
+          })
+          .eq("id", logId);
+      } catch (e) {
+        console.error("[sync] persistProgress failed", e);
+      }
+    };
 
+    try {
+      // Step 1: discover server highest UID and existing UIDs in the batch
+      // range using a short-lived discovery connection.
+      let existingUids: number[] = [];
+      let endUid = lastUid;
+      const resumeFromUid = lastUid + 1;
+      {
+        const disc = await openImap();
         try {
-          // Discover server's highest UID via mailbox status (uidNext - 1).
-          const status = await client.status("INBOX", { uidNext: true, messages: true });
-          const uidNext = Number((status as any)?.uidNext ?? 0);
-          serverHighestUid = uidNext > 0 ? uidNext - 1 : 0;
+          const lock = await Promise.race([
+            disc.getMailboxLock("INBOX"),
+            timeoutAfter(10_000, "imap getMailboxLock"),
+          ]) as any;
+          try {
+            const status = await disc.status("INBOX", { uidNext: true, messages: true });
+            const uidNext = Number((status as any)?.uidNext ?? 0);
+            serverHighestUid = uidNext > 0 ? uidNext - 1 : 0;
 
-          const resumeFromUid = lastUid + 1;
-
-          if (serverHighestUid < resumeFromUid) {
-            console.log(
-              `[sync] log=${logId} nothing new (server_highest=${serverHighestUid}, resume_from=${resumeFromUid})`,
-            );
-          } else {
-            const endUid = Math.min(
-              serverHighestUid,
-              resumeFromUid + BATCH_SIZE - 1,
-            );
-            const range = `${resumeFromUid}:${endUid}`;
-
-            // First: ask the server which UIDs in this range actually exist.
-            // This avoids hanging on UID gaps (deleted messages) which was
-            // the root cause of the previous stalls.
-            let existingUids: number[] = [];
-            try {
-              const searchResult = await Promise.race([
-                client.search({ uid: range }, { uid: true }),
-                timeoutAfter(10_000, `imap search ${range}`),
-              ]) as any;
-              existingUids = Array.isArray(searchResult)
-                ? searchResult.map((u: any) => Number(u)).filter((n) => !isNaN(n)).sort((a, b) => a - b)
-                : [];
-            } catch (err: any) {
-              const m = err?.message ?? String(err);
-              console.error(`[sync] log=${logId} search failed: ${m}`);
-              errors.push(`IMAP search ${range}: ${m}`);
-            }
-
-            console.log(
-              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid} existing_uids=${existingUids.length}`,
-            );
-
-            if (existingUids.length === 0) {
-              // No real messages in this range — skip past it entirely.
-              if (endUid > highestUid) highestUid = endUid;
-              heartbeatStats = { fetched: 0, highestUid };
-            }
-
-            // Manual iteration with per-step timeout so a hanging stream
-            // can't block the batch.
-            const fetchRange = existingUids.length > 0 ? existingUids.join(",") : null;
-            const iter: AsyncIterator<any> | null = fetchRange
-              ? (client.fetch(
-                  fetchRange,
-                  { source: true, uid: true, internalDate: true },
-                  { uid: true },
-                ) as any)[Symbol.asyncIterator]()
-              : null;
-
-            let lastSeenUidInRange = resumeFromUid - 1;
-
-            while (iter) {
-              const elapsed = Date.now() - startedAt;
-              if (elapsed > MAX_WALL_CLOCK_MS) {
-                console.log(
-                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms`,
-                );
-                moreToDo = true;
-                nextUid = lastSeenUidInRange + 1;
-                break;
-              }
-
-              let step: IteratorResult<any>;
+            if (serverHighestUid >= resumeFromUid) {
+              endUid = Math.min(serverHighestUid, resumeFromUid + BATCH_SIZE - 1);
+              const range = `${resumeFromUid}:${endUid}`;
               try {
-                step = await Promise.race([
-                  iter.next(),
-                  timeoutAfter(
-                    PER_FETCH_STEP_TIMEOUT_MS,
-                    `IMAP fetch next() after uid=${lastSeenUidInRange}`,
-                  ),
-                ]);
+                const searchResult = await Promise.race([
+                  disc.search({ uid: range }, { uid: true }),
+                  timeoutAfter(10_000, `imap search ${range}`),
+                ]) as any;
+                existingUids = Array.isArray(searchResult)
+                  ? searchResult.map((u: any) => Number(u)).filter((n) => !isNaN(n)).sort((a, b) => a - b)
+                  : [];
               } catch (err: any) {
-                const m = err?.message ?? String(err);
-                console.error(
-                  `[sync] log=${logId} stream stalled after uid=${lastSeenUidInRange}: ${m}`,
-                );
-                errors.push(`IMAP stall after UID ${lastSeenUidInRange}: ${m}`);
-                // Yield gracefully — next cron tick resumes from here.
-                moreToDo = true;
-                nextUid = lastSeenUidInRange + 1;
-                break;
+                errors.push(`IMAP search ${range}: ${err?.message ?? String(err)}`);
               }
-
-              if (step.done) break;
-              const msg = step.value;
-              const uid = msg.uid ?? 0;
-              if (uid > lastSeenUidInRange) lastSeenUidInRange = uid;
-
-              const t0 = Date.now();
-              try {
-                await Promise.race([
-                  processMessage(msg.source, uid, "INBOX", account_id, supabase),
-                  timeoutAfter(PER_MESSAGE_TIMEOUT_MS, `processMessage uid=${uid}`),
-                ]).then((result: any) => {
-                  if (result?.status === "created") created++;
-                  else if (result?.status === "skipped_duplicate") skipped++;
-                });
-                console.log(
-                  `[sync] processed UID ${uid} in ${Date.now() - t0}ms`,
-                );
-              } catch (err: any) {
-                const m = err?.message ?? String(err);
-                console.error(
-                  `[sync] log=${logId} uid=${uid} failed in ${
-                    Date.now() - t0
-                  }ms:`,
-                  m,
-                );
-                errors.push(`UID ${uid}: ${m}`);
-              }
-
-              fetched++;
-              if (uid > highestUid) highestUid = uid;
-              heartbeatStats = { fetched, highestUid };
+              console.log(
+                `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid} existing_uids=${existingUids.length}`,
+              );
+            } else {
+              console.log(
+                `[sync] log=${logId} nothing new (server_highest=${serverHighestUid}, resume_from=${resumeFromUid})`,
+              );
             }
-
-            // Defensive: try to drain/close the iterator so we don't leak it.
-            try {
-              if (iter && typeof (iter as any).return === "function") {
-                await Promise.race([
-                  (iter as any).return(),
-                  timeoutAfter(2_000, "iterator return"),
-                ]).catch(() => {});
-              }
-            } catch { /* ignore */ }
-
-
-            // After the bounded fetch loop, are there still UIDs left after this batch?
-            if (!moreToDo) {
-              const lastProcessedUid = highestUid > 0 ? highestUid : endUid;
-              if (serverHighestUid > lastProcessedUid) {
-                moreToDo = true;
-                nextUid = lastProcessedUid + 1;
-              }
-            }
+          } finally {
+            try { lock.release(); } catch { /* ignore */ }
           }
         } finally {
-          try { lock.release(); } catch { /* ignore */ }
-          await client.logout().catch(() => {});
+          await disc.logout().catch(() => {});
         }
-      } catch (err: any) {
-        const m = err?.message ?? String(err);
-        console.error(`[sync] log=${logId} IMAP error:`, m);
-        errors.push(`IMAP: ${m}`);
+      }
+
+      // Empty range → jump past it
+      if (serverHighestUid >= resumeFromUid && existingUids.length === 0) {
+        await persistProgress(endUid);
+      }
+
+      // Step 2: per UID, open a fresh connection, fetch one message, close.
+      for (const uid of existingUids) {
+        const elapsed = Date.now() - startedAt;
+        if (elapsed > MAX_WALL_CLOCK_MS) {
+          console.log(`[sync] log=${logId} wall-clock guard hit at ${elapsed}ms (uid=${uid})`);
+          moreToDo = true;
+          nextUid = highestUid + 1;
+          break;
+        }
+
+        let one: any = null;
+        let perUidClient: any = null;
+        let perLock: any = null;
+        const tFetch = Date.now();
+        try {
+          perUidClient = await openImap();
+          perLock = await Promise.race([
+            perUidClient.getMailboxLock("INBOX"),
+            timeoutAfter(10_000, `imap lock uid=${uid}`),
+          ]);
+          one = await Promise.race([
+            perUidClient.fetchOne(
+              String(uid),
+              { source: true, uid: true, internalDate: true },
+              { uid: true },
+            ),
+            timeoutAfter(PER_FETCH_STEP_TIMEOUT_MS, `IMAP fetchOne uid=${uid}`),
+          ]);
+        } catch (err: any) {
+          const m = err?.message ?? String(err);
+          console.error(
+            `[sync] log=${logId} fetchOne uid=${uid} failed in ${Date.now() - tFetch}ms: ${m}`,
+          );
+          errors.push(`UID ${uid} fetch: ${m}`);
+          await persistProgress(uid);
+          // Best-effort cleanup
+          try { perLock?.release?.(); } catch { /* ignore */ }
+          try { await perUidClient?.logout?.(); } catch { /* ignore */ }
+          continue;
+        }
+
+        // Cleanup connection BEFORE running processMessage so we never hold
+        // an idle IMAP socket open while doing DB work.
+        try { perLock?.release?.(); } catch { /* ignore */ }
+        try { await perUidClient?.logout?.(); } catch { /* ignore */ }
+
+        if (!one || !one.source) {
+          console.warn(`[sync] log=${logId} uid=${uid} returned no source — skipping`);
+          await persistProgress(uid);
+          continue;
+        }
+
+        const t0 = Date.now();
+        try {
+          await Promise.race([
+            processMessage(one.source, uid, "INBOX", account_id, supabase),
+            timeoutAfter(PER_MESSAGE_TIMEOUT_MS, `processMessage uid=${uid}`),
+          ]).then((result: any) => {
+            if (result?.status === "created") created++;
+            else if (result?.status === "skipped_duplicate") skipped++;
+          });
+          console.log(`[sync] processed UID ${uid} in ${Date.now() - t0}ms`);
+        } catch (err: any) {
+          const m = err?.message ?? String(err);
+          console.error(`[sync] log=${logId} uid=${uid} failed in ${Date.now() - t0}ms:`, m);
+          errors.push(`UID ${uid}: ${m}`);
+        }
+
+        fetched++;
+        await persistProgress(uid);
+      }
+
+      if (!moreToDo) {
+        const lastProcessedUid = highestUid > 0 ? highestUid : endUid;
+        if (serverHighestUid > lastProcessedUid) {
+          moreToDo = true;
+          nextUid = lastProcessedUid + 1;
+        }
       }
     } catch (err: any) {
       crashed = err?.message ?? String(err);
