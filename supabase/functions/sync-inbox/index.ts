@@ -17,12 +17,15 @@ const corsHeaders = {
 };
 
 // How many messages we try to process per invocation.
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 // Hard wall-clock guard. Must be < STALE_HEARTBEAT_MS so we always finalize
 // our own run before the reaper in the next cron tick declares us stale.
-const MAX_WALL_CLOCK_MS = 45_000;
+const MAX_WALL_CLOCK_MS = 30_000;
 // Per-message timeout (parse + persist + attachments).
-const PER_MESSAGE_TIMEOUT_MS = 15_000;
+const PER_MESSAGE_TIMEOUT_MS = 12_000;
+// Per-fetch-step timeout: how long we wait for the IMAP stream to yield
+// the NEXT message before we give up on this batch entirely.
+const PER_FETCH_STEP_TIMEOUT_MS = 15_000;
 // Heartbeat update interval.
 const HEARTBEAT_INTERVAL_MS = 5_000;
 // A run is "stale" if its heartbeat is older than this when a new sync starts.
@@ -251,8 +254,14 @@ Deno.serve(async (req) => {
       });
 
       try {
-        await client.connect();
-        const lock = await client.getMailboxLock("INBOX");
+        await Promise.race([
+          client.connect(),
+          timeoutAfter(15_000, "imap connect"),
+        ]);
+        const lock = await Promise.race([
+          client.getMailboxLock("INBOX"),
+          timeoutAfter(10_000, "imap getMailboxLock"),
+        ]) as any;
 
         try {
           // Discover server's highest UID via mailbox status (uidNext - 1).
@@ -272,28 +281,85 @@ Deno.serve(async (req) => {
               resumeFromUid + BATCH_SIZE - 1,
             );
             const range = `${resumeFromUid}:${endUid}`;
+
+            // First: ask the server which UIDs in this range actually exist.
+            // This avoids hanging on UID gaps (deleted messages) which was
+            // the root cause of the previous stalls.
+            let existingUids: number[] = [];
+            try {
+              const searchResult = await Promise.race([
+                client.search({ uid: range }, { uid: true }),
+                timeoutAfter(10_000, `imap search ${range}`),
+              ]) as any;
+              existingUids = Array.isArray(searchResult)
+                ? searchResult.map((u: any) => Number(u)).filter((n) => !isNaN(n)).sort((a, b) => a - b)
+                : [];
+            } catch (err: any) {
+              const m = err?.message ?? String(err);
+              console.error(`[sync] log=${logId} search failed: ${m}`);
+              errors.push(`IMAP search ${range}: ${m}`);
+            }
+
             console.log(
-              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid}`,
+              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid} existing_uids=${existingUids.length}`,
             );
 
-            for await (
-              const msg of client.fetch(
-                range,
-                { source: true, uid: true, internalDate: true },
-                { uid: true },
-              )
-            ) {
+            if (existingUids.length === 0) {
+              // No real messages in this range — skip past it entirely.
+              if (endUid > highestUid) highestUid = endUid;
+              heartbeatStats = { fetched: 0, highestUid };
+            }
+
+            // Manual iteration with per-step timeout so a hanging stream
+            // can't block the batch.
+            const fetchRange = existingUids.length > 0 ? existingUids.join(",") : null;
+            const iter: AsyncIterator<any> | null = fetchRange
+              ? (client.fetch(
+                  fetchRange,
+                  { source: true, uid: true, internalDate: true },
+                  { uid: true },
+                ) as any)[Symbol.asyncIterator]()
+              : null;
+
+            let lastSeenUidInRange = resumeFromUid - 1;
+
+            while (iter) {
               const elapsed = Date.now() - startedAt;
               if (elapsed > MAX_WALL_CLOCK_MS) {
                 console.log(
-                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms, yielding at uid=${msg.uid}`,
+                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms`,
                 );
-                if (msg.uid) nextUid = msg.uid;
                 moreToDo = true;
+                nextUid = lastSeenUidInRange + 1;
                 break;
               }
 
+              let step: IteratorResult<any>;
+              try {
+                step = await Promise.race([
+                  iter.next(),
+                  timeoutAfter(
+                    PER_FETCH_STEP_TIMEOUT_MS,
+                    `IMAP fetch next() after uid=${lastSeenUidInRange}`,
+                  ),
+                ]);
+              } catch (err: any) {
+                const m = err?.message ?? String(err);
+                console.error(
+                  `[sync] log=${logId} stream stalled after uid=${lastSeenUidInRange}: ${m}`,
+                );
+                errors.push(`IMAP stall after UID ${lastSeenUidInRange}: ${m}`);
+                // Yield gracefully — next cron tick resumes from here.
+                moreToDo = true;
+                nextUid = lastSeenUidInRange + 1;
+                break;
+              }
+
+              if (step.done) break;
+              const msg = step.value;
               const uid = msg.uid ?? 0;
+              if (uid > lastSeenUidInRange) lastSeenUidInRange = uid;
+
               const t0 = Date.now();
               try {
                 await Promise.race([
@@ -318,11 +384,20 @@ Deno.serve(async (req) => {
               }
 
               fetched++;
-              // Always advance past this UID — even on error/timeout — so a
-              // single poison message can't block the entire sync forever.
               if (uid > highestUid) highestUid = uid;
               heartbeatStats = { fetched, highestUid };
             }
+
+            // Defensive: try to drain/close the iterator so we don't leak it.
+            try {
+              if (iter && typeof (iter as any).return === "function") {
+                await Promise.race([
+                  (iter as any).return(),
+                  timeoutAfter(2_000, "iterator return"),
+                ]).catch(() => {});
+              }
+            } catch { /* ignore */ }
+
 
             // After the bounded fetch loop, are there still UIDs left after this batch?
             if (!moreToDo) {

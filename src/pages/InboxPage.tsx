@@ -198,7 +198,7 @@ export default function InboxPage() {
 
       {!isMobile ? (
         <ResizablePanelGroup orientation="horizontal" className="flex-1">
-          <ResizablePanel id="list" minSize={20} defaultSize={32}>
+          <ResizablePanel id="list" minSize={24} defaultSize={36}>
             <div className="relative h-full">
               <ThreadList
                 threads={sortedThreads}
@@ -224,7 +224,7 @@ export default function InboxPage() {
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="detail" minSize={30}>
+          <ResizablePanel id="detail" minSize={30} defaultSize={64}>
             <ThreadDetail
               threadId={selectedId}
               onAdvance={() => {
