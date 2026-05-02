@@ -281,19 +281,45 @@ Deno.serve(async (req) => {
               resumeFromUid + BATCH_SIZE - 1,
             );
             const range = `${resumeFromUid}:${endUid}`;
+
+            // First: ask the server which UIDs in this range actually exist.
+            // This avoids hanging on UID gaps (deleted messages) which was
+            // the root cause of the previous stalls.
+            let existingUids: number[] = [];
+            try {
+              const searchResult = await Promise.race([
+                client.search({ uid: range }, { uid: true }),
+                timeoutAfter(10_000, `imap search ${range}`),
+              ]) as any;
+              existingUids = Array.isArray(searchResult)
+                ? searchResult.map((u: any) => Number(u)).filter((n) => !isNaN(n)).sort((a, b) => a - b)
+                : [];
+            } catch (err: any) {
+              const m = err?.message ?? String(err);
+              console.error(`[sync] log=${logId} search failed: ${m}`);
+              errors.push(`IMAP search ${range}: ${m}`);
+            }
+
             console.log(
-              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid}`,
+              `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid} existing_uids=${existingUids.length}`,
             );
 
-            // Manual iteration so we can put a timeout around EACH stream
-            // step (not just processMessage). If the IMAP stream hangs
-            // between messages — which is what was happening — we abort the
-            // batch instead of letting the function time out at 150s.
-            const iter: AsyncIterator<any> = (client.fetch(
-              range,
-              { source: true, uid: true, internalDate: true },
-              { uid: true },
-            ) as any)[Symbol.asyncIterator]();
+            if (existingUids.length === 0) {
+              // No real messages in this range — skip past it entirely.
+              if (endUid > highestUid) highestUid = endUid;
+              heartbeatStats = { fetched: 0, highestUid };
+            }
+
+            // Manual iteration with per-step timeout so a hanging stream
+            // can't block the batch.
+            const fetchRange = existingUids.length > 0 ? existingUids.join(",") : null;
+            const iter: AsyncIterator<any> | null = fetchRange
+              ? (client.fetch(
+                  fetchRange,
+                  { source: true, uid: true, internalDate: true },
+                  { uid: true },
+                ) as any)[Symbol.asyncIterator]()
+              : null;
 
             let lastSeenUidInRange = resumeFromUid - 1;
 
