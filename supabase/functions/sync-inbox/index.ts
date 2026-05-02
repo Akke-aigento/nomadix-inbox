@@ -77,6 +77,13 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
 
+    const { data: account, error: accErr } = await supabase
+      .from("email_accounts")
+      .select("*")
+      .eq("id", account_id)
+      .single();
+    if (accErr || !account) return json({ error: "Account not found" }, 404);
+
     if (!isServiceRole) {
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: authHeader } },
@@ -84,28 +91,10 @@ Deno.serve(async (req) => {
       });
       const { data: userRes } = await userClient.auth.getUser();
       if (!userRes?.user) return json({ error: "Unauthorized" }, 401);
-
-      const { data: account, error: accErr } = await supabase
-        .from("email_accounts")
-        .select("*")
-        .eq("id", account_id)
-        .single();
-      if (accErr || !account) return json({ error: "Account not found" }, 404);
       if (account.owner_user_id !== userRes.user.id) {
         return json({ error: "Forbidden" }, 403);
       }
-      // shadow used below
-      (globalThis as any).__acc = account;
-    } else {
-      const { data: account, error: accErr } = await supabase
-        .from("email_accounts")
-        .select("*")
-        .eq("id", account_id)
-        .single();
-      if (accErr || !account) return json({ error: "Account not found" }, 404);
-      (globalThis as any).__acc = account;
     }
-    const account = (globalThis as any).__acc as any;
 
     // ─── Reap stale "running" rows based on heartbeat ───
     const staleCutoff = new Date(Date.now() - STALE_HEARTBEAT_MS).toISOString();
