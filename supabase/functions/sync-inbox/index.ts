@@ -304,66 +304,83 @@ Deno.serve(async (req) => {
               `[sync] log=${logId} fetch range=${range} server_highest_uid=${serverHighestUid} existing_uids=${existingUids.length}`,
             );
 
+            // Helper: persist progress IMMEDIATELY after each UID so a later
+            // crash/timeout/cleanup hang can never roll back our pointer.
+            const persistProgress = async (advanceTo: number) => {
+              if (advanceTo > highestUid) highestUid = advanceTo;
+              heartbeatStats = { fetched, highestUid };
+              try {
+                await supabase
+                  .from("sync_log")
+                  .update({
+                    last_heartbeat_at: new Date().toISOString(),
+                    messages_fetched: fetched,
+                    highest_uid_seen: highestUid,
+                    next_uid: highestUid + 1,
+                  })
+                  .eq("id", logId);
+              } catch (e) {
+                console.error("[sync] persistProgress failed", e);
+              }
+            };
+
+            // Empty range → jump past it entirely so the next tick advances.
             if (existingUids.length === 0) {
-              // No real messages in this range — skip past it entirely.
-              if (endUid > highestUid) highestUid = endUid;
-              heartbeatStats = { fetched: 0, highestUid };
+              await persistProgress(endUid);
             }
 
-            // Manual iteration with per-step timeout so a hanging stream
-            // can't block the batch.
-            const fetchRange = existingUids.length > 0 ? existingUids.join(",") : null;
-            const iter: AsyncIterator<any> | null = fetchRange
-              ? (client.fetch(
-                  fetchRange,
-                  { source: true, uid: true, internalDate: true },
-                  { uid: true },
-                ) as any)[Symbol.asyncIterator]()
-              : null;
-
-            let lastSeenUidInRange = resumeFromUid - 1;
-
-            while (iter) {
+            // Per-UID fetchOne loop. No long-lived async iterator, so no
+            // backpressure deadlocks and no cleanup hang on lock.release().
+            for (const uid of existingUids) {
               const elapsed = Date.now() - startedAt;
               if (elapsed > MAX_WALL_CLOCK_MS) {
                 console.log(
-                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms`,
+                  `[sync] log=${logId} wall-clock guard hit at ${elapsed}ms (uid=${uid})`,
                 );
                 moreToDo = true;
-                nextUid = lastSeenUidInRange + 1;
+                nextUid = highestUid + 1;
                 break;
               }
 
-              let step: IteratorResult<any>;
+              let one: any = null;
+              const tFetch = Date.now();
               try {
-                step = await Promise.race([
-                  iter.next(),
+                one = await Promise.race([
+                  client.fetchOne(
+                    String(uid),
+                    { source: true, uid: true, internalDate: true },
+                    { uid: true },
+                  ),
                   timeoutAfter(
                     PER_FETCH_STEP_TIMEOUT_MS,
-                    `IMAP fetch next() after uid=${lastSeenUidInRange}`,
+                    `IMAP fetchOne uid=${uid}`,
                   ),
                 ]);
               } catch (err: any) {
                 const m = err?.message ?? String(err);
                 console.error(
-                  `[sync] log=${logId} stream stalled after uid=${lastSeenUidInRange}: ${m}`,
+                  `[sync] log=${logId} fetchOne uid=${uid} failed in ${
+                    Date.now() - tFetch
+                  }ms: ${m}`,
                 );
-                errors.push(`IMAP stall after UID ${lastSeenUidInRange}: ${m}`);
-                // Yield gracefully — next cron tick resumes from here.
-                moreToDo = true;
-                nextUid = lastSeenUidInRange + 1;
-                break;
+                errors.push(`UID ${uid} fetch: ${m}`);
+                // Skip past this UID so we never get stuck on it again.
+                await persistProgress(uid);
+                continue;
               }
 
-              if (step.done) break;
-              const msg = step.value;
-              const uid = msg.uid ?? 0;
-              if (uid > lastSeenUidInRange) lastSeenUidInRange = uid;
+              if (!one || !one.source) {
+                console.warn(
+                  `[sync] log=${logId} uid=${uid} returned no source — skipping`,
+                );
+                await persistProgress(uid);
+                continue;
+              }
 
               const t0 = Date.now();
               try {
                 await Promise.race([
-                  processMessage(msg.source, uid, "INBOX", account_id, supabase),
+                  processMessage(one.source, uid, "INBOX", account_id, supabase),
                   timeoutAfter(PER_MESSAGE_TIMEOUT_MS, `processMessage uid=${uid}`),
                 ]).then((result: any) => {
                   if (result?.status === "created") created++;
@@ -384,22 +401,10 @@ Deno.serve(async (req) => {
               }
 
               fetched++;
-              if (uid > highestUid) highestUid = uid;
-              heartbeatStats = { fetched, highestUid };
+              await persistProgress(uid);
             }
 
-            // Defensive: try to drain/close the iterator so we don't leak it.
-            try {
-              if (iter && typeof (iter as any).return === "function") {
-                await Promise.race([
-                  (iter as any).return(),
-                  timeoutAfter(2_000, "iterator return"),
-                ]).catch(() => {});
-              }
-            } catch { /* ignore */ }
-
-
-            // After the bounded fetch loop, are there still UIDs left after this batch?
+            // After the bounded batch, is there still more on the server?
             if (!moreToDo) {
               const lastProcessedUid = highestUid > 0 ? highestUid : endUid;
               if (serverHighestUid > lastProcessedUid) {
