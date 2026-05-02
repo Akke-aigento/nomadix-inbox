@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBrandsQuery, useSidebarCounts } from "@/hooks/useThreadsQuery";
@@ -228,6 +229,46 @@ export function InboxSidebar({
                 : "Not synced yet"}
             </span>
           )}
+        </button>
+        <button
+          onClick={async () => {
+            setLocalTriggering(true);
+            try {
+              const { data: accs } = await supabase.from("email_accounts").select("id");
+              const accountList = accs || [];
+              if (accountList.length === 0) {
+                toast.error("Geen e-mailaccount geconfigureerd");
+                return;
+              }
+              toast.info("Historische backfill gestart — dit kan tot 2 minuten duren");
+              for (const a of accountList) {
+                const { data, error } = await supabase.functions.invoke("backfill-inbox", {
+                  body: { account_id: a.id },
+                });
+                if (error) {
+                  toast.error(`Backfill mislukt: ${error.message}`);
+                } else if (data?.error) {
+                  toast.error(`Backfill: ${data.error}`);
+                } else {
+                  const more = data?.more_to_do ? " (meer te doen — klik nogmaals)" : "";
+                  toast.success(
+                    `Backfill: ${data?.messages_fetched ?? 0} mails opgehaald${more}`,
+                  );
+                }
+              }
+            } finally {
+              setLocalTriggering(false);
+            }
+          }}
+          disabled={syncing}
+          className={cn(
+            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
+            collapsed && "justify-center",
+          )}
+          title="Haal alle historische mails in één keer op"
+        >
+          <History className="h-3.5 w-3.5" />
+          {!collapsed && <span className="truncate">Historische backfill</span>}
         </button>
         <button
           onClick={() => navigate("/settings")}
