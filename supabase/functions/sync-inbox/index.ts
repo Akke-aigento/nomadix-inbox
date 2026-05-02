@@ -158,6 +158,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ─── Early exit: if last successful caught-up run was very recent and
+    // reported nothing new, skip the IMAP roundtrip entirely. Saves ~80% of
+    // runs on a quiet personal mailbox.
+    const EARLY_EXIT_WINDOW_MS = 4 * 60_000; // 4 min — shorter than 5-min sync interval
+    const { data: lastOk } = await supabase
+      .from("sync_log")
+      .select("finished_at, status, messages_fetched, next_uid")
+      .eq("email_account_id", account_id)
+      .eq("status", "ok")
+      .order("finished_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (
+      lastOk?.finished_at &&
+      lastOk.messages_fetched === 0 &&
+      Date.now() - new Date(lastOk.finished_at).getTime() < EARLY_EXIT_WINDOW_MS
+    ) {
+      console.log(`[sync] early-exit account=${account_id} (last 'ok' empty run < 4min ago)`);
+      return json({ status: "ok", skipped: "recent_empty_run", messages_fetched: 0 }, 200);
+    }
+
     // ─── Open new sync_log row ───
     const { data: logEntry, error: logErr } = await supabase
       .from("sync_log")
