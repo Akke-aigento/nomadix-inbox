@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
 
             let lastSeenUidInRange = resumeFromUid - 1;
 
-            while (true) {
+            while (iter) {
               const elapsed = Date.now() - startedAt;
               if (elapsed > MAX_WALL_CLOCK_MS) {
                 console.log(
@@ -390,7 +390,7 @@ Deno.serve(async (req) => {
 
             // Defensive: try to drain/close the iterator so we don't leak it.
             try {
-              if (typeof (iter as any).return === "function") {
+              if (iter && typeof (iter as any).return === "function") {
                 await Promise.race([
                   (iter as any).return(),
                   timeoutAfter(2_000, "iterator return"),
