@@ -317,6 +317,8 @@ Deno.serve(async (req) => {
               }
 
               fetched++;
+              // Always advance past this UID — even on error/timeout — so a
+              // single poison message can't block the entire sync forever.
               if (uid > highestUid) highestUid = uid;
               heartbeatStats = { fetched, highestUid };
             }
