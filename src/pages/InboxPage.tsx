@@ -224,7 +224,7 @@ export default function InboxPage() {
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel id="detail" order={2} minSize={30} defaultSize={64}>
+          <ResizablePanel id="detail" minSize={30} defaultSize={64}>
             <ThreadDetail
               threadId={selectedId}
               onAdvance={() => {
