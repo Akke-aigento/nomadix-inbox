@@ -18,8 +18,9 @@ const corsHeaders = {
 
 // How many messages we try to process per invocation.
 const BATCH_SIZE = 10;
-// Hard wall-clock guard — break before the platform kills us at ~200s.
-const MAX_WALL_CLOCK_MS = 150_000;
+// Hard wall-clock guard. Must be < STALE_HEARTBEAT_MS so we always finalize
+// our own run before the reaper in the next cron tick declares us stale.
+const MAX_WALL_CLOCK_MS = 45_000;
 // Per-message timeout (parse + persist + attachments).
 const PER_MESSAGE_TIMEOUT_MS = 15_000;
 // Heartbeat update interval.
@@ -317,6 +318,8 @@ Deno.serve(async (req) => {
               }
 
               fetched++;
+              // Always advance past this UID — even on error/timeout — so a
+              // single poison message can't block the entire sync forever.
               if (uid > highestUid) highestUid = uid;
               heartbeatStats = { fetched, highestUid };
             }
