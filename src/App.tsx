@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { ProtectedRoute } from "@/auth/ProtectedRoute";
+import AppShell from "@/components/AppShell";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import AuthPage from "./pages/AuthPage";
@@ -28,7 +29,9 @@ const App = () => (
               path="/inbox"
               element={
                 <ProtectedRoute>
-                  <InboxPage />
+                  <AppShell>
+                    <InboxPage />
+                  </AppShell>
                 </ProtectedRoute>
               }
             />
@@ -36,7 +39,9 @@ const App = () => (
               path="/inbox/:threadId"
               element={
                 <ProtectedRoute>
-                  <InboxPage />
+                  <AppShell>
+                    <InboxPage />
+                  </AppShell>
                 </ProtectedRoute>
               }
             />
@@ -44,7 +49,9 @@ const App = () => (
               path="/settings"
               element={
                 <ProtectedRoute>
-                  <SettingsPage />
+                  <AppShell>
+                    <SettingsPage />
+                  </AppShell>
                 </ProtectedRoute>
               }
             />
@@ -52,7 +59,9 @@ const App = () => (
               path="/rules"
               element={
                 <ProtectedRoute>
-                  <RulesPage />
+                  <AppShell>
+                    <RulesPage />
+                  </AppShell>
                 </ProtectedRoute>
               }
             />

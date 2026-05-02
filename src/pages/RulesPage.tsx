@@ -18,7 +18,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Pencil, Plus, PlayCircle, Trash2 } from "lucide-react";
-import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -109,11 +108,11 @@ export default function RulesPage() {
   };
 
   return (
-    <AppShell>
-      <div className="mb-6 flex items-end justify-between">
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      <header className="flex items-end justify-between border-b border-border bg-surface-1 px-8 py-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Routing rules</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-medium tracking-tight text-text">Routing rules</h1>
+          <p className="mt-0.5 text-xs text-text-muted">
             Auto-tag, archive or prioritise inbound mail before it reaches your inbox. Lower
             priority runs first.
           </p>
@@ -121,8 +120,10 @@ export default function RulesPage() {
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="h-4 w-4" /> Add rule
         </Button>
-      </div>
+      </header>
 
+      <div className="flex-1 overflow-y-auto px-8 py-8">
+        <div className="mx-auto max-w-4xl">
       <div className="overflow-hidden rounded-md border border-border surface-1">
         <div className="grid grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
@@ -190,7 +191,9 @@ export default function RulesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AppShell>
+        </div>
+      </div>
+    </div>
   );
 }
 

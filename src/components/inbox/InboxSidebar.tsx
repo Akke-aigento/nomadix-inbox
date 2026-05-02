@@ -1,56 +1,52 @@
-import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Inbox,
-  MessageSquareWarning,
+  MessageSquareReply,
   Clock,
+  BellOff,
   Send,
   FileEdit,
   Archive,
-  Mailbox,
-  BellOff,
+  Mail,
+  Search,
   Settings as SettingsIcon,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useBrandsQuery, useSidebarCounts } from "@/hooks/useThreadsQuery";
+import { useAuth } from "@/auth/AuthProvider";
 import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
-import { Button } from "@/components/ui/button";
+import { useBrandsQuery, useSidebarCounts } from "@/hooks/useThreadsQuery";
+import { setBrandAccent } from "@/lib/brand-accent";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureNoActiveSync } from "@/lib/sync-guard";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { ensureNoActiveSync } from "@/lib/sync-guard";
 
-const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
+const VIEWS: { key: ViewKind; label: string; icon: typeof Inbox; shortcut?: string }[] = [
   { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
-  { key: "needs-reply", label: "Needs Reply", icon: MessageSquareWarning, shortcut: "g r" },
+  { key: "needs-reply", label: "Needs Reply", icon: MessageSquareReply, shortcut: "g r" },
   { key: "snoozed", label: "Snoozed", icon: Clock, shortcut: "g z" },
   { key: "muted", label: "Muted", icon: BellOff, shortcut: "g m" },
   { key: "sent", label: "Sent", icon: Send },
   { key: "drafts", label: "Drafts", icon: FileEdit },
   { key: "archive", label: "Archive", icon: Archive, shortcut: "g a" },
-  { key: "all", label: "All Mail", icon: Mailbox },
+  { key: "all", label: "All Mail", icon: Mail },
 ];
 
-export function InboxSidebar({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+export function InboxSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const { filters, update } = useInboxFilters();
-  const { data: brands } = useBrandsQuery();
+  const { data: brands = [] } = useBrandsQuery();
   const { data: counts } = useSidebarCounts();
+
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [lastSyncStatus, setLastSyncStatus] = useState<string | null>(null);
   const [activeRunning, setActiveRunning] = useState(false);
   const [localTriggering, setLocalTriggering] = useState(false);
+
+  const onInbox = location.pathname.startsWith("/inbox");
 
   useEffect(() => {
     let mounted = true;
@@ -66,7 +62,6 @@ export function InboxSidebar({
       setLastSync(acc?.last_sync_at ?? null);
       setLastSyncStatus(acc?.last_sync_status ?? null);
 
-      // Is there an actively running sync (fresh heartbeat) anywhere?
       const cutoff = new Date(Date.now() - HEARTBEAT_STALE_MS).toISOString();
       const { data: running } = await supabase
         .from("sync_log")
@@ -87,280 +82,257 @@ export function InboxSidebar({
 
   const syncing = activeRunning || localTriggering;
 
-  const setView = (v: ViewKind) => {
-    update({ view: v, brands: [] });
-    if (location.pathname !== "/inbox") navigate("/inbox");
+  // Keep --accent-glow in sync with the active brand filter (so reloads / direct
+  // URLs show the right tint without requiring a click).
+  useEffect(() => {
+    if (filters.brands.length === 1) {
+      setBrandAccent(filters.brands[0]);
+    } else {
+      setBrandAccent(null);
+    }
+  }, [filters.brands]);
+
+  const goToView = (v: ViewKind) => {
+    setBrandAccent(null);
+    if (onInbox) {
+      update({ view: v, brands: [] });
+    } else {
+      const qs = v !== "inbox" ? `?view=${v}` : "";
+      navigate(`/inbox${qs}`);
+    }
   };
 
-  const setBrand = (slug: string) => {
+  const goToBrand = (slug: string) => {
     const isOnly = filters.brands.length === 1 && filters.brands[0] === slug;
-    update({ brands: isOnly ? [] : [slug], view: "inbox" });
-    if (location.pathname !== "/inbox") navigate("/inbox");
+    setBrandAccent(isOnly ? null : slug);
+    if (onInbox) {
+      update({ brands: isOnly ? [] : [slug], view: "inbox" });
+    } else {
+      navigate(isOnly ? "/inbox" : `/inbox?brand=${encodeURIComponent(slug)}`);
+    }
   };
 
-  const isViewActive = (v: ViewKind) => filters.view === v && filters.brands.length === 0;
-  const isBrandActive = (slug: string) => filters.brands.includes(slug);
+  const isViewActive = (v: ViewKind) =>
+    onInbox && filters.view === v && filters.brands.length === 0;
+  const isBrandActive = (slug: string) => onInbox && filters.brands.includes(slug);
+
+  const openPalette = () => {
+    window.dispatchEvent(new CustomEvent("nomadix:open-command-palette"));
+  };
+
+  const triggerSync = async () => {
+    if (syncing) return;
+    setLocalTriggering(true);
+    try {
+      const { data: accs } = await supabase.from("email_accounts").select("id");
+      const accountList = accs || [];
+      let skipped = 0;
+      for (const a of accountList) {
+        const guard = await ensureNoActiveSync(a.id);
+        if (guard.ok === false) {
+          skipped++;
+          if (accountList.length === 1) toast.error(guard.reason);
+          continue;
+        }
+        await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
+      }
+      if (skipped > 0 && accountList.length > 1) {
+        toast.info(`${skipped} account(s) overgeslagen — sync al bezig`);
+      }
+    } finally {
+      setLocalTriggering(false);
+    }
+  };
+
+  const syncLabel = syncing
+    ? "Syncing…"
+    : lastSyncStatus === "error"
+      ? "Sync failed — retry"
+      : lastSync
+        ? `Synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
+        : "Not synced yet";
 
   return (
-    <aside
-      className={cn(
-        "flex h-full flex-col border-r border-border bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] transition-[width]",
-        collapsed ? "w-14" : "w-60",
-      )}
-    >
-      {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-border px-3">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-              <Inbox className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-semibold tracking-tight">Nomadix</span>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={onToggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+    <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-border bg-surface-1">
+      {/* Workspace identity */}
+      <div className="flex items-center gap-2 px-4 py-4">
+        <div className="flex size-7 items-center justify-center rounded-md bg-accent-glow/15">
+          <span className="text-sm font-medium text-accent-glow">N</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-text">Nomadix Inbox</div>
+          {user?.email && (
+            <div className="truncate font-mono text-2xs text-text-subtle">{user.email}</div>
+          )}
+        </div>
       </div>
 
-      {/* Views */}
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
-        <Section title="Views" collapsed={collapsed}>
+      {/* Search trigger — opens command palette */}
+      <button
+        onClick={openPalette}
+        className="group mx-3 mb-3 flex items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-text-muted transition-colors duration-200 ease-swift hover:bg-surface-3 hover:text-text"
+      >
+        <Search className="size-3.5" strokeWidth={1.5} />
+        <span className="flex-1 text-left text-xs">Search</span>
+        <kbd className="font-mono text-2xs text-text-subtle transition-colors group-hover:text-text-muted">
+          ⌘K
+        </kbd>
+      </button>
+
+      {/* Views + Brands */}
+      <nav className="flex-1 space-y-6 overflow-y-auto px-2 py-2">
+        <SidebarSection title="Views">
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const active = isViewActive(v.key);
-            const badge =
+            const count =
               v.key === "inbox"
                 ? counts?.totalUnread
                 : v.key === "snoozed"
-                ? counts?.snoozed
-                : undefined;
+                  ? counts?.snoozed
+                  : undefined;
             return (
               <SidebarItem
                 key={v.key}
-                active={active}
-                collapsed={collapsed}
-                onClick={() => setView(v.key)}
-                icon={<Icon className="h-4 w-4" />}
+                icon={<Icon className="size-3.5" strokeWidth={1.5} />}
                 label={v.label}
+                count={count}
+                active={active}
                 shortcut={v.shortcut}
-                badge={badge && badge > 0 ? badge : undefined}
-                accentHsl="174 80% 40%"
+                onClick={() => goToView(v.key)}
               />
             );
           })}
-        </Section>
+        </SidebarSection>
 
         {brands && brands.length > 0 && (
-          <Section title="Brands" collapsed={collapsed}>
-            {brands.map((b: any) => {
+          <SidebarSection title="Brands">
+            {(brands as any[]).map((b) => {
               const active = isBrandActive(b.slug);
-              const badge = counts?.perBrand?.[b.id] ?? 0;
+              const count = counts?.perBrand?.[b.id] ?? 0;
               return (
-                <SidebarItem
+                <SidebarBrand
                   key={b.id}
+                  name={b.name}
+                  color={b.color_primary}
+                  count={count}
                   active={active}
-                  collapsed={collapsed}
-                  onClick={() => setBrand(b.slug)}
-                  icon={
-                    <span
-                      className="block h-2.5 w-2.5 rounded-full"
-                      style={{ background: b.color_primary }}
-                    />
-                  }
-                  label={b.name}
-                  badge={badge > 0 ? badge : undefined}
-                  accentColor={b.color_primary}
+                  onClick={() => goToBrand(b.slug)}
                 />
               );
             })}
-          </Section>
+          </SidebarSection>
         )}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
-        <button
-          onClick={async () => {
-            setLocalTriggering(true);
-            try {
-              const { data: accs } = await supabase.from("email_accounts").select("id");
-              const accountList = accs || [];
-              let skipped = 0;
-              for (const a of accountList) {
-                const guard = await ensureNoActiveSync(a.id);
-                if (guard.ok === false) {
-                  skipped++;
-                  if (accountList.length === 1) toast.error(guard.reason);
-                  continue;
-                }
-                await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
-              }
-              if (skipped > 0 && accountList.length > 1) {
-                toast.info(`${skipped} account(s) overgeslagen — sync al bezig`);
-              }
-            } finally {
-              setLocalTriggering(false);
-            }
-          }}
-          disabled={syncing}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
-            collapsed && "justify-center",
-          )}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
-          {!collapsed && (
-            <span className="truncate">
-              {syncing
-                ? "Syncing…"
-                : lastSyncStatus === "error"
-                ? "Sync failed — retry"
-                : lastSyncStatus === "running"
-                ? "Sync in progress…"
-                : lastSync
-                ? `Synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
-                : "Not synced yet"}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={async () => {
-            setLocalTriggering(true);
-            try {
-              const { data: accs } = await supabase.from("email_accounts").select("id");
-              const accountList = accs || [];
-              if (accountList.length === 0) {
-                toast.error("Geen e-mailaccount geconfigureerd");
-                return;
-              }
-              toast.info("Historische backfill gestart — dit kan tot 2 minuten duren");
-              for (const a of accountList) {
-                const { data, error } = await supabase.functions.invoke("backfill-inbox", {
-                  body: { account_id: a.id },
-                });
-                if (error) {
-                  toast.error(`Backfill mislukt: ${error.message}`);
-                } else if (data?.error) {
-                  toast.error(`Backfill: ${data.error}`);
-                } else {
-                  const more = data?.more_to_do ? " (meer te doen — klik nogmaals)" : "";
-                  toast.success(
-                    `Backfill: ${data?.messages_fetched ?? 0} mails opgehaald${more}`,
-                  );
-                }
-              }
-            } finally {
-              setLocalTriggering(false);
-            }
-          }}
-          disabled={syncing}
-          className={cn(
-            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
-            collapsed && "justify-center",
-          )}
-          title="Haal alle historische mails in één keer op"
-        >
-          <History className="h-3.5 w-3.5" />
-          {!collapsed && <span className="truncate">Historische backfill</span>}
-        </button>
-        <button
+      <div className="space-y-1 border-t border-border px-2 py-2">
+        <SidebarItem
+          icon={<SettingsIcon className="size-3.5" strokeWidth={1.5} />}
+          label="Settings"
+          active={location.pathname.startsWith("/settings")}
           onClick={() => navigate("/settings")}
-          className={cn(
-            "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))]",
-            collapsed && "justify-center",
-          )}
+        />
+        <button
+          onClick={triggerSync}
+          disabled={syncing}
+          title={syncing ? syncLabel : "Click to sync now"}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-2xs text-text-subtle transition-colors duration-200 ease-swift hover:bg-surface-2 hover:text-text-muted disabled:cursor-default disabled:opacity-60"
         >
-          <SettingsIcon className="h-3.5 w-3.5" />
-          {!collapsed && <span>Settings</span>}
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              syncing
+                ? "animate-pulse bg-accent-glow"
+                : lastSyncStatus === "error"
+                  ? "bg-destructive"
+                  : "bg-text-subtle/40",
+            )}
+          />
+          <span className="truncate font-mono">{syncLabel}</span>
         </button>
       </div>
     </aside>
   );
 }
 
-function Section({
-  title,
-  collapsed,
-  children,
-}: {
+interface SidebarSectionProps {
   title: string;
-  collapsed: boolean;
   children: React.ReactNode;
-}) {
+}
+
+function SidebarSection({ title, children }: SidebarSectionProps) {
   return (
-    <div className="mb-4">
-      {!collapsed && (
-        <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
-          {title}
-        </div>
-      )}
-      <div className="space-y-0.5">{children}</div>
+    <div>
+      <div className="mb-1 px-3 font-mono text-2xs uppercase tracking-wide text-text-subtle">
+        {title}
+      </div>
+      <div className="space-y-px">{children}</div>
     </div>
   );
 }
 
-function SidebarItem({
-  active,
-  collapsed,
-  onClick,
-  icon,
-  label,
-  shortcut,
-  badge,
-  accentColor,
-  accentHsl,
-}: {
-  active: boolean;
-  collapsed: boolean;
-  onClick: () => void;
+interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
+  count?: number;
+  active?: boolean;
   shortcut?: string;
-  badge?: number;
-  accentColor?: string;
-  accentHsl?: string;
-}) {
+  onClick: () => void;
+}
+
+function SidebarItem({ icon, label, count, active, shortcut, onClick }: SidebarItemProps) {
   return (
     <button
       onClick={onClick}
-      title={collapsed ? label : undefined}
       className={cn(
-        "group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-        "hover:bg-[hsl(var(--sidebar-accent))]",
-        active && "bg-[hsl(var(--sidebar-accent))] text-foreground",
-        collapsed && "justify-center",
+        "group flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-xs transition-colors duration-200 ease-swift",
+        active ? "bg-surface-3 text-text" : "text-text-muted hover:bg-surface-2 hover:text-text",
       )}
-      style={
-        active && accentColor
-          ? { boxShadow: `inset 2px 0 0 0 ${accentColor}` }
-          : active && accentHsl
-          ? { boxShadow: `inset 2px 0 0 0 hsl(${accentHsl})` }
-          : undefined
-      }
     >
-      <span className="flex h-4 w-4 items-center justify-center text-muted-foreground group-hover:text-foreground">
+      <span
+        className={cn(
+          "flex size-3.5 shrink-0 items-center justify-center",
+          active ? "text-accent-glow" : "text-text-subtle group-hover:text-text-muted",
+        )}
+      >
         {icon}
       </span>
-      {!collapsed && (
-        <>
-          <span className="flex-1 truncate text-left">{label}</span>
-          {badge !== undefined && (
-            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-              {badge}
-            </span>
-          )}
-          {shortcut && !badge && (
-            <span className="font-mono text-[10px] text-muted-foreground/50">{shortcut}</span>
-          )}
-        </>
+      <span className="flex-1 truncate text-left">{label}</span>
+      {count != null && count > 0 ? (
+        <span className="font-mono text-2xs text-text-subtle">{count}</span>
+      ) : shortcut ? (
+        <span className="font-mono text-2xs text-text-subtle opacity-0 transition-opacity group-hover:opacity-100">
+          {shortcut}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+interface SidebarBrandProps {
+  name: string;
+  color: string | null;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}
+
+function SidebarBrand({ name, color, count, active, onClick }: SidebarBrandProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "group flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-xs transition-colors duration-200 ease-swift",
+        active ? "bg-surface-3 text-text" : "text-text-muted hover:bg-surface-2 hover:text-text",
       )}
+    >
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={{ backgroundColor: color || "var(--accent-glow)" }}
+      />
+      <span className="flex-1 truncate text-left">{name}</span>
+      {count > 0 && <span className="font-mono text-2xs text-text-subtle">{count}</span>}
     </button>
   );
 }

@@ -1,8 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { InboxSidebar } from "@/components/inbox/InboxSidebar";
 import { ThreadList } from "@/components/inbox/ThreadList";
 import { ThreadDetail } from "@/components/inbox/ThreadDetail";
 import { ShortcutCheatSheet } from "@/components/inbox/ShortcutCheatSheet";
@@ -14,7 +12,6 @@ import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
 import { archiveThreads, deleteThreads, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Archive, Trash2, MailOpen, X, BellOff } from "lucide-react";
 import { SnoozePicker } from "@/components/inbox/SnoozePicker";
 import { LabelPicker } from "@/components/inbox/LabelPicker";
@@ -83,14 +80,11 @@ export default function InboxPage() {
     return arr;
   }, [threads, filters.sort]);
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [density, setDensityState] = useState<Density>(() => loadDensity());
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   const setDensity = useCallback((d: Density | ((prev: Density) => Density)) => {
     setDensityState((prev) => {
@@ -100,13 +94,6 @@ export default function InboxPage() {
       } catch {}
       return next;
     });
-  }, []);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
   }, []);
 
   const selectedId = params.threadId ?? null;
@@ -144,10 +131,17 @@ export default function InboxPage() {
     setSelectedIds,
     toggleSelect,
     setDensity: (fn) => setDensity(fn),
-    setSidebarCollapsed,
+    setSidebarCollapsed: () => {}, // sidebar lives in AppShell now; collapse handled there in a later pass
     setShowCheatSheet,
     setPaletteOpen,
   });
+
+  // Listen for sidebar's search button (no-op until Pass 5 wires it)
+  useEffect(() => {
+    const handler = () => setPaletteOpen(true);
+    window.addEventListener("nomadix:open-command-palette", handler);
+    return () => window.removeEventListener("nomadix:open-command-palette", handler);
+  }, []);
 
   const bulkArchive = async () => {
     const ids = Array.from(selectedIds);
@@ -174,93 +168,41 @@ export default function InboxPage() {
     setSelectedIds(new Set());
   };
 
-  const showList = !isMobile || !selectedId;
-  const showDetail = !isMobile || !!selectedId;
-
-  // Close mobile sidebar when navigating
-  useEffect(() => {
-    setMobileSidebarOpen(false);
-  }, [filters.view, filters.brands.join(","), selectedId]);
-
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      {!isMobile && (
-        <InboxSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((b) => !b)} />
-      )}
+    <div className="flex h-full w-full overflow-hidden">
+      <aside className="relative flex w-[380px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-2">
+        <ThreadList
+          threads={sortedThreads}
+          loading={isLoading}
+          selectedId={selectedId}
+          focusedIndex={focusedIndex}
+          selectedIds={selectedIds}
+          density={density}
+          setDensity={setDensity}
+          onSelectThread={setSelectedId}
+          onToggleSelectId={toggleSelect}
+          onFocusIndex={setFocusedIndex}
+        />
+        <BulkBar
+          count={selectedIds.size}
+          selectedIds={Array.from(selectedIds)}
+          onArchive={bulkArchive}
+          onDelete={bulkDelete}
+          onMarkRead={bulkMarkRead}
+          onMute={bulkMute}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      </aside>
 
-      {isMobile && (
-        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-          <SheetContent side="left" className="w-64 p-0">
-            <InboxSidebar collapsed={false} onToggle={() => setMobileSidebarOpen(false)} />
-          </SheetContent>
-        </Sheet>
-      )}
-
-      {!isMobile ? (
-        <ResizablePanelGroup orientation="horizontal" className="flex-1">
-          <ResizablePanel id="list" minSize={24} defaultSize={36}>
-            <div className="relative h-full">
-              <ThreadList
-                threads={sortedThreads}
-                loading={isLoading}
-                selectedId={selectedId}
-                focusedIndex={focusedIndex}
-                selectedIds={selectedIds}
-                density={density}
-                setDensity={setDensity}
-                onSelectThread={setSelectedId}
-                onToggleSelectId={toggleSelect}
-                onFocusIndex={setFocusedIndex}
-              />
-              <BulkBar
-                count={selectedIds.size}
-                selectedIds={Array.from(selectedIds)}
-                onArchive={bulkArchive}
-                onDelete={bulkDelete}
-                onMarkRead={bulkMarkRead}
-                onMute={bulkMute}
-                onClear={() => setSelectedIds(new Set())}
-              />
-            </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel id="detail" minSize={30} defaultSize={64}>
-            <ThreadDetail
-              threadId={selectedId}
-              onAdvance={() => {
-                const next = sortedThreads[focusedIndex] || null;
-                setSelectedId(next ? next.id : null);
-              }}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      ) : (
-        <div className="flex-1">
-          {showList && (
-            <ThreadList
-              threads={sortedThreads}
-              loading={isLoading}
-              selectedId={selectedId}
-              focusedIndex={focusedIndex}
-              selectedIds={selectedIds}
-              density={density}
-              setDensity={setDensity}
-              onSelectThread={setSelectedId}
-              onToggleSelectId={toggleSelect}
-              onFocusIndex={setFocusedIndex}
-              onOpenSidebar={() => setMobileSidebarOpen(true)}
-            />
-          )}
-          {showDetail && (
-            <ThreadDetail
-              threadId={selectedId}
-              isMobile
-              onClose={() => setSelectedId(null)}
-              onAdvance={() => setSelectedId(null)}
-            />
-          )}
-        </div>
-      )}
+      <section className="flex flex-1 min-w-0 flex-col overflow-hidden bg-background">
+        <ThreadDetail
+          threadId={selectedId}
+          onAdvance={() => {
+            const next = sortedThreads[focusedIndex] || null;
+            setSelectedId(next ? next.id : null);
+          }}
+        />
+      </section>
 
       <ShortcutCheatSheet open={showCheatSheet} onOpenChange={setShowCheatSheet} />
       <CommandPalette
