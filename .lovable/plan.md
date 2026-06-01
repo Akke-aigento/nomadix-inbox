@@ -1,70 +1,51 @@
-## Context
+# Fix: Reply faalt met "Edge Function returned a non-2xx status code"
 
-Dit is een persoonlijke inbox, geen support-systeem. Toch draait de sync nu **elke minuut** (1.440 runs/dag), en doet bij elke run minstens een IMAP-connect + UID-search. Dat is overkill — voor persoonlijke mail is **elke 10–15 minuten** ruim voldoende, en dat scheelt direct ~90–95% in edge function invocaties + database writes.
+## Diagnose
 
-Daarnaast laten de logs zien dat we ondertussen op **48 messages** zitten (was 6) en dat de incremental sync nu netjes "niets te doen" rapporteert in <1s. Het backfill-probleem is dus opgelost; nu mogen we afslanken.
+De `send-email` edge function crasht met **`CPU Time exceeded`** (bevestigd in de Supabase function logs, tijdstip matcht exact met jouw poging).
 
-## Wat ik ga doen
+**Root cause:** de `denomailer@1.6.0` library doet veel synchrone CPU-werk (MIME-bouw, quoted-printable/base64-encoding van de volledige HTML body inclusief alle geciteerde history, TLS handshake). Bij een reply op een thread met meerdere quote-niveaus tikt dit over de CPU-quota van Supabase Edge Functions heen.
 
-### 1. Cron-frequentie omlaag: van 1 min → 15 min
+Dit is hetzelfde patroon dat we al hebben opgelost voor IMAP (`ImapFlow` → `imap-direct.ts`).
 
-Pas de bestaande `pg_cron` job aan:
+## Aanpak
 
-```text
-huidige schedule: * * * * *        (elke minuut)
-nieuwe schedule:  */15 * * * *     (elke 15 minuten)
-```
+Vervang `denomailer` door een lichte, directe SMTP-client (`smtp-direct.ts`) die via `Deno.connectTls` praat met `smtp.migadu.com:465`. Geen zware abstracties, alleen wat we nodig hebben:
 
-**Impact:**
-- Edge function invocaties: 1.440/dag → **96/dag** (-93%)
-- Database heartbeat-writes: idem -93%
-- IMAP-connecties naar Migadu: idem -93%
-- Latency tot nieuwe mail zichtbaar: gemiddeld 7,5 min, max 15 min — prima voor persoonlijk gebruik
+- TLS connect → `EHLO` → `AUTH LOGIN` → `MAIL FROM` → `RCPT TO` (per recipient) → `DATA` → message bytes → `.` → `QUIT`
+- Zelf de MIME-envelope bouwen: headers + `multipart/alternative` (text + html) zodat clients beide hebben
+- Body encoderen als `quoted-printable` (compact, geen base64-blowup)
+- Subject/from-name correct MIME-encoderen (UTF-8 `=?utf-8?B?...?=`) voor non-ASCII
 
-Als je later toch sneller wilt: één SQL-regel om naar `*/5` of `*/10` te gaan.
+## Wijzigingen
 
-### 2. "Sync nu" knop voor wanneer je niet wilt wachten
+1. **Nieuw bestand**: `supabase/functions/_shared/smtp-direct.ts`
+   - `sendSmtpMail({ host, port, username, password, from, to, cc, bcc, subject, html, text, headers })`
+   - Gebruikt `Deno.connectTls` (poort 465) of `Deno.connect` + STARTTLS (poort 587)
+   - Streamt de DATA-fase regel voor regel (dot-stuffing) zodat grote bodies geen pieklast geven
 
-Kleine UI-toevoeging in de inbox-sidebar (naast de bestaande "Historische backfill" knop): een **"Sync nu"** knop die handmatig `sync-inbox` triggert. Zo heb je het beste van twee werelden — goedkope achtergrond-sync + on-demand refresh als je iets verwacht.
+2. **Edit**: `supabase/functions/send-email/index.ts`
+   - Vervang `import { SMTPClient } from denomailer` door de nieuwe helper
+   - Verwijder de huidige `smtp.send(...)` + `smtp.close()` blokken
+   - Houd alle business-logica (threading headers, `messages` insert, draft cleanup, thread stats) ongewijzigd
 
-### 3. Sync-inbox nóg goedkoper maken voor lege runs
+3. **Geen frontend-wijzigingen** nodig — de error wordt automatisch opgelost zodra de functie weer 200 teruggeeft.
 
-Op dit moment opent elke run een IMAP-verbinding, ook als er niks nieuws is. Kleine optimalisatie in `sync-inbox/index.ts`:
+## Verificatie
 
-- Skip de hele IMAP-flow als `next_uid > server_highest_uid` al bekend is uit de vorige run **én** die vorige run < 5 min geleden was.
-- Effect: ~80% van de runs wordt een no-op van <100ms, vrijwel zonder DB-writes.
+- Deploy `send-email`
+- Trigger een reply vanuit jouw UI (dezelfde thread)
+- Check edge function logs op `2xx` + bevestig dat de mail aankomt
+- Check `messages` tabel: nieuwe outbound row met `is_outbound = true`
 
-Dit is een kleine code-wijziging, geen herarchitectuur.
+## Technische details
 
-### 4. Sync_log retention
+- Migadu accepteert SMTP op `465` (implicit TLS) en `587` (STARTTLS). We respecteren wat in `email_accounts.smtp_port` staat.
+- Auth: `AUTH LOGIN` met base64-encoded username/password (zoals denomailer ook deed).
+- We blijven binnen Deno's ingebouwde TLS-stack — geen externe deps, geen npm-bundling.
 
-`sync_log` groeit nu met elke run. Korte cleanup-policy: bewaar laatste 7 dagen, ouder = wegknippen. Eénmalige migration + dagelijkse cron-job (1×/dag) die oude rows verwijdert.
+## Wat dit NIET aanraakt
 
-## Wat ik NIET ga doen
-
-- Geen overstap naar IMAP IDLE / push (zou wel sub-seconde latency geven, maar betekent een long-lived connectie en is voor persoonlijk gebruik onnodig complex).
-- Geen wijziging aan `backfill-inbox` — die is on-demand en kost niks tenzij je 'm aanklikt.
-- Geen wijziging aan AI-draft, categorisering of UI-rendering.
-
-## Verwachte besparing
-
-| Onderdeel | Voor | Na | Besparing |
-|---|---|---|---|
-| Edge invocaties/dag | ~1.440 | ~96 | -93% |
-| DB writes/dag (heartbeat + sync_log) | ~7.000+ | ~300 | -95% |
-| IMAP-connecties/dag | ~1.440 | ~20 (alleen bij echt nieuwe mail) | -98% |
-
-Voor een persoonlijke mailbox zou dit ruim binnen het gratis Cloud-tegoed van $25/maand moeten blijven.
-
-## Bestanden die wijzigen
-
-- SQL migration: `cron.alter_job(1, schedule => '*/15 * * * *')` + nieuwe daily cleanup job voor `sync_log`
-- `supabase/functions/sync-inbox/index.ts` — early-exit voor lege runs
-- `src/components/inbox/InboxSidebar.tsx` — "Sync nu" knop ernaast
-
-## Vraag voor jou
-
-Ben je akkoord met **15 minuten** als sync-interval? Of wil je liever:
-- **5 min** (sneller, nog steeds -80% besparing)
-- **10 min** (middenweg, -90%)
-- **30 min** (max besparing, -97%)
+- Geen wijzigingen aan `sync-inbox`, `backfill-inbox` of cron-config
+- Geen RLS-/DB-migraties nodig
+- Geen secrets nodig — gebruikt al bestaande `get_email_account_password` RPC
