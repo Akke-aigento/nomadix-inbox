@@ -140,21 +140,9 @@ Deno.serve(async (req) => {
     const fromDomain = from_email.split("@")[1] || "localhost";
     const newMessageId = makeMessageId(fromDomain);
 
-    // Build SMTP client (Migadu uses 465 SSL or 587 STARTTLS)
+    // Migadu uses 465 SSL or 587 STARTTLS
     const usePort = emailAccount.smtp_port ?? 465;
-    const useTls = emailAccount.smtp_use_tls ?? true;
-
-    const smtp = new SMTPClient({
-      connection: {
-        hostname: emailAccount.smtp_host || "smtp.migadu.com",
-        port: usePort,
-        tls: useTls && usePort === 465,
-        auth: {
-          username: emailAccount.username,
-          password: pwd,
-        },
-      },
-    });
+    const useTls = (emailAccount.smtp_use_tls ?? true) && usePort === 465;
 
     const headers: Record<string, string> = {
       "Message-ID": newMessageId,
@@ -162,24 +150,24 @@ Deno.serve(async (req) => {
     if (inReplyToHeader) headers["In-Reply-To"] = inReplyToHeader;
     if (referencesHeader) headers["References"] = referencesHeader;
 
-    const fromHeader = account.display_name
-      ? `${account.display_name} <${from_email}>`
-      : from_email;
-
     try {
-      await smtp.send({
-        from: fromHeader,
-        to: to,
+      await sendSmtpMail({
+        host: emailAccount.smtp_host || "smtp.migadu.com",
+        port: usePort,
+        useTls,
+        username: emailAccount.username,
+        password: pwd,
+        fromEmail: from_email,
+        fromName: account.display_name ?? undefined,
+        to,
         cc: cc.length ? cc : undefined,
         bcc: bcc.length ? bcc : undefined,
         subject,
         html: body_html,
         headers,
       });
-      await smtp.close();
     } catch (e) {
       console.error("SMTP send failed:", e);
-      try { await smtp.close(); } catch (_) { /* ignore */ }
       return jsonResponse({ error: `SMTP error: ${String((e as Error).message ?? e)}` }, 502);
     }
 
