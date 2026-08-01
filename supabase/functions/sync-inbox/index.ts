@@ -506,7 +506,6 @@ Deno.serve(async (req) => {
         fetched++;
         await persistProgress(uid);
       }
-      }
 
       if (!moreToDo) {
         const lastProcessedUid = highestUid > 0 ? highestUid : endUid;
