@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.backfill-inbox]
 verify_jwt = false
+
+[functions.health]
+verify_jwt = false

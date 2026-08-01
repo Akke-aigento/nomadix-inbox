@@ -908,6 +908,7 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: string
       }
+      get_health_token: { Args: never; Returns: string }
       get_vault_secret: { Args: { secret_id: string }; Returns: string }
       trigger_inbox_sync_for_all_accounts: { Args: never; Returns: undefined }
       upsert_email_account_password: {
