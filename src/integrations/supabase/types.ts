@@ -801,6 +801,50 @@ export type Database = {
           },
         ]
       }
+      sync_uid_retries: {
+        Row: {
+          attempts: number
+          created_at: string
+          email_account_id: string
+          gave_up: boolean
+          id: string
+          last_error: string | null
+          owner_user_id: string
+          uid: number
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          email_account_id: string
+          gave_up?: boolean
+          id?: string
+          last_error?: string | null
+          owner_user_id: string
+          uid: number
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          email_account_id?: string
+          gave_up?: boolean
+          id?: string
+          last_error?: string | null
+          owner_user_id?: string
+          uid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_uid_retries_email_account_id_fkey"
+            columns: ["email_account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       thread_labels: {
         Row: {
           label_id: string
