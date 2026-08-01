@@ -140,6 +140,32 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ─── 4. gave_up_uids ───
+  {
+    const since = new Date(now - 7 * 24 * 60 * 60_000).toISOString();
+    const { data, error } = await supabase
+      .from("sync_uid_retries")
+      .select("uid, last_error, updated_at")
+      .eq("gave_up", true)
+      .gte("updated_at", since)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      checks.push({ key: "gave_up_uids", status: "fail", detail: { error: error.message } });
+    } else {
+      const rows = data ?? [];
+      checks.push({
+        key: "gave_up_uids",
+        status: rows.length > 0 ? "fail" : "ok",
+        detail: {
+          count: rows.length,
+          uids: rows.map((r) => Number(r.uid)),
+          most_recent_error: rows[0]?.last_error ?? null,
+        },
+      });
+    }
+  }
+
   return json({
     status: worst(checks.map((c) => c.status)),
     generated_at: new Date(now).toISOString(),
