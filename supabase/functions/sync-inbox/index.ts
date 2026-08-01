@@ -443,11 +443,21 @@ Deno.serve(async (req) => {
           console.error(
             `[sync] log=${logId} fetchOne uid=${uid} failed in ${Date.now() - tFetch}ms: ${m}`,
           );
-          errors.push(`UID ${uid} fetch: ${m}`);
-          await persistProgress(uid);
           // Best-effort cleanup
           try { perLock?.release?.(); } catch { /* ignore */ }
           try { await perUidClient?.logout?.(); } catch { /* ignore */ }
+
+          const attempts = await registerUidFailure(uid, m);
+          if (attempts < MAX_UID_ATTEMPTS) {
+            console.log(
+              `[sync] log=${logId} uid=${uid} attempt ${attempts}/${MAX_UID_ATTEMPTS} — retry next run`,
+            );
+            moreToDo = true;
+            nextUid = uid;
+            break;
+          }
+          errors.push(`UID ${uid} opgegeven na ${MAX_UID_ATTEMPTS} pogingen: ${m}`);
+          await persistProgress(uid);
           continue;
         }
 
@@ -457,12 +467,24 @@ Deno.serve(async (req) => {
         try { await perUidClient?.logout?.(); } catch { /* ignore */ }
 
         if (!one || !one.source) {
-          console.warn(`[sync] log=${logId} uid=${uid} returned no source — skipping`);
+          const m = "IMAP returned no source";
+          console.warn(`[sync] log=${logId} uid=${uid} returned no source`);
+          const attempts = await registerUidFailure(uid, m);
+          if (attempts < MAX_UID_ATTEMPTS) {
+            console.log(
+              `[sync] log=${logId} uid=${uid} attempt ${attempts}/${MAX_UID_ATTEMPTS} — retry next run`,
+            );
+            moreToDo = true;
+            nextUid = uid;
+            break;
+          }
+          errors.push(`UID ${uid} opgegeven na ${MAX_UID_ATTEMPTS} pogingen: ${m}`);
           await persistProgress(uid);
           continue;
         }
 
         const t0 = Date.now();
+        let processOk = false;
         try {
           await Promise.race([
             processMessage(one.source, uid, "INBOX", account_id, supabase),
@@ -471,6 +493,7 @@ Deno.serve(async (req) => {
             if (result?.status === "created") created++;
             else if (result?.status === "skipped_duplicate") skipped++;
           });
+          processOk = true;
           console.log(`[sync] processed UID ${uid} in ${Date.now() - t0}ms`);
         } catch (err: any) {
           const m = err?.message ?? String(err);
@@ -478,8 +501,11 @@ Deno.serve(async (req) => {
           errors.push(`UID ${uid}: ${m}`);
         }
 
+        if (processOk) await clearUidRetry(uid);
+
         fetched++;
         await persistProgress(uid);
+      }
       }
 
       if (!moreToDo) {
