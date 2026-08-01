@@ -280,6 +280,65 @@ Deno.serve(async (req) => {
       return c;
     };
 
+    // ─── Retry bookkeeping for UIDs that fail to fetch ───
+    const MAX_UID_ATTEMPTS = 3;
+
+    // Returns the attempt count after registering this failure.
+    const registerUidFailure = async (
+      uid: number,
+      lastError: string,
+    ): Promise<number> => {
+      try {
+        const { data: existing } = await supabase
+          .from("sync_uid_retries")
+          .select("id, attempts")
+          .eq("email_account_id", account_id)
+          .eq("uid", uid)
+          .maybeSingle();
+
+        if (existing) {
+          const attempts = Number(existing.attempts ?? 0) + 1;
+          await supabase
+            .from("sync_uid_retries")
+            .update({
+              attempts,
+              last_error: clampError(lastError, 500),
+              updated_at: new Date().toISOString(),
+              gave_up: attempts >= MAX_UID_ATTEMPTS,
+            })
+            .eq("id", existing.id);
+          return attempts;
+        }
+
+        await supabase.from("sync_uid_retries").insert({
+          email_account_id: account_id,
+          owner_user_id: account.owner_user_id,
+          uid,
+          attempts: 1,
+          last_error: clampError(lastError, 500),
+          gave_up: 1 >= MAX_UID_ATTEMPTS,
+        });
+        return 1;
+      } catch (e) {
+        console.error("[sync] registerUidFailure failed", e);
+        // Fail open: treat as final attempt so we never hard-loop forever.
+        return MAX_UID_ATTEMPTS;
+      }
+    };
+
+    const clearUidRetry = async (uid: number) => {
+      try {
+        await supabase
+          .from("sync_uid_retries")
+          .delete()
+          .eq("email_account_id", account_id)
+          .eq("uid", uid)
+          .eq("gave_up", false);
+      } catch (e) {
+        console.error("[sync] clearUidRetry failed", e);
+      }
+    };
+
     const persistProgress = async (advanceTo: number) => {
       if (advanceTo > highestUid) highestUid = advanceTo;
       heartbeatStats = { fetched, highestUid };
