@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -26,8 +26,10 @@ import {
   setThreadsMuted,
   unsnoozeThreads,
   unarchiveThreads,
+  runAction,
 } from "@/lib/inbox-actions";
-import { toast } from "sonner";
+import { pickReplyParent } from "@/lib/reply-target";
+import { isSequencePending } from "@/lib/key-sequence";
 import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
@@ -69,7 +71,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       const { data: messages } = await supabase
         .from("messages")
         .select(
-          "id, from_address, from_name, to_addresses, cc_addresses, reply_to, subject, body_html, body_text, received_at, matched_email_address, is_read, ai_summary, needs_reply, urgency, sender_type, requires_action",
+          "id, from_address, from_name, to_addresses, cc_addresses, reply_to, subject, body_html, body_text, received_at, matched_email_address, is_read, is_outbound, ai_summary, needs_reply, urgency, sender_type, requires_action",
         )
         .eq("thread_id", threadId)
         .order("received_at", { ascending: true });
@@ -114,17 +116,22 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
 
-  // Auto-mark messages as read when opening
+  // Auto-mark messages as read — once per opened thread, so marking it unread
+  // again ("u") isn't undone by the refetch that follows.
+  // threads.unread_count follows via the messages_unread_sync trigger.
+  const autoReadDoneRef = useRef<string | null>(null);
   useEffect(() => {
     if (!threadId || !data?.messages?.length) return;
+    if (autoReadDoneRef.current === threadId) return;
+    autoReadDoneRef.current = threadId;
     const unread = data.messages.filter((m) => !m.is_read).map((m) => m.id);
     if (!unread.length) return;
     supabase
       .from("messages")
       .update({ is_read: true })
       .in("id", unread)
-      .then(() => {
-        supabase.from("threads").update({ unread_count: 0 }).eq("id", threadId);
+      .then(({ error }) => {
+        if (error) return;
         qc.invalidateQueries({ queryKey: ["threads"] });
         qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
       });
@@ -146,7 +153,12 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   }, [data?.messages]);
   const aiSummary = latestAnalyzed?.ai_summary as string | undefined;
 
-  const lastMessage = data?.messages?.[data.messages.length - 1];
+  // Thread-level reply answers the newest *incoming* message: after sending,
+  // the newest message is our own, and replying to it would mail ourselves.
+  const replyParent = useMemo(
+    () => (data?.messages?.length ? pickReplyParent(data.messages) : undefined),
+    [data?.messages],
+  );
 
   const openComposer = useCallback(
     (mode: ComposeMode, parent: MessageRecord, aiSeed: ComposerState["aiSeed"] = null) => {
@@ -187,22 +199,24 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Second key of a "g …" sequence belongs to the global resolver.
+      if (isSequencePending() || e.defaultPrevented) return;
 
       // Compose shortcuts (only if no composer + last message exists)
-      if (!composer && lastMessage) {
+      if (!composer && replyParent) {
         if (e.key === "r" && !e.shiftKey) {
           e.preventDefault();
-          openComposer("reply", lastMessage);
+          openComposer("reply", replyParent);
           return;
         }
         if (e.key === "a" && e.shiftKey) {
           e.preventDefault();
-          openComposer("replyAll", lastMessage);
+          openComposer("replyAll", replyParent);
           return;
         }
         if (e.key === "f") {
           e.preventDefault();
-          openComposer("forward", lastMessage);
+          openComposer("forward", replyParent);
           return;
         }
       }
@@ -222,14 +236,16 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       if (e.key === "m") {
         e.preventDefault();
         const isMuted = (data?.thread as any)?.is_muted;
-        await setThreadsMuted([threadId], !isMuted, qc);
-        toast.success(isMuted ? "Mute opgeheven" : "Thread gemute");
-        if (!isMuted) onAdvance?.();
+        const ok = await runAction(
+          () => setThreadsMuted([threadId], !isMuted, qc),
+          isMuted ? "Mute opgeheven" : "Thread gemute",
+        );
+        if (ok && !isMuted) onAdvance?.();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [composer, lastMessage, openComposer, threadId, data?.thread, qc, onAdvance]);
+  }, [composer, replyParent, openComposer, threadId, data?.thread, qc, onAdvance]);
 
   if (!threadId) return <NoThreadSelected />;
   if (isLoading || !data?.thread) {
@@ -239,33 +255,32 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   }
 
   const handleArchive = async () => {
-    await archiveThreads([threadId], qc);
-    toast.success("Archived");
-    onAdvance?.();
+    if (await runAction(() => archiveThreads([threadId], qc), "Archived")) onAdvance?.();
   };
   const handleUnarchive = async () => {
-    await unarchiveThreads([threadId], qc);
-    toast.success("Unarchived");
+    await runAction(() => unarchiveThreads([threadId], qc), "Unarchived");
   };
   const handleDelete = async () => {
-    await deleteThreads([threadId], qc);
-    toast.success("Deleted");
-    onAdvance?.();
+    // deleteThreads shows its own toast with an undo action.
+    if (await runAction(() => deleteThreads([threadId], qc))) onAdvance?.();
   };
   const handleToggleRead = async () => {
     const anyUnread = data.messages.some((m) => !m.is_read);
-    await setThreadsRead([threadId], !anyUnread ? false : true, qc);
-    toast.success(anyUnread ? "Marked read" : "Marked unread");
+    await runAction(
+      () => setThreadsRead([threadId], anyUnread, qc),
+      anyUnread ? "Marked read" : "Marked unread",
+    );
   };
   const handleToggleMute = async () => {
     const isMuted = (data.thread as any).is_muted;
-    await setThreadsMuted([threadId], !isMuted, qc);
-    toast.success(isMuted ? "Mute opgeheven" : "Thread gemute");
-    if (!isMuted) onAdvance?.();
+    const ok = await runAction(
+      () => setThreadsMuted([threadId], !isMuted, qc),
+      isMuted ? "Mute opgeheven" : "Thread gemute",
+    );
+    if (ok && !isMuted) onAdvance?.();
   };
   const handleUnsnooze = async () => {
-    await unsnoozeThreads([threadId], qc);
-    toast.success("Snooze opgeheven");
+    await runAction(() => unsnoozeThreads([threadId], qc), "Snooze opgeheven");
   };
 
   const brandId = (data.thread as any).brand_id as string | null;
@@ -322,8 +337,8 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
             ))}
           </div>
         </div>
-        {lastMessage && !composer && (
-          <Button variant="outline" size="sm" className="h-8" onClick={() => openComposer("reply", lastMessage)}>
+        {replyParent && !composer && (
+          <Button variant="outline" size="sm" className="h-8" onClick={() => openComposer("reply", replyParent)}>
             <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply
           </Button>
         )}

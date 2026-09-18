@@ -1,12 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { archiveThreads, deleteThreads, setThreadsRead } from "@/lib/inbox-actions";
+import { archiveThreads, deleteThreads, runAction, setThreadsRead } from "@/lib/inbox-actions";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { toast } from "sonner";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
+import { clearSequence, isSequencePending, startSequence } from "@/lib/key-sequence";
+import { resolveTargetIds } from "@/lib/inbox-targets";
 
 interface Args {
   threads: ThreadRow[];
@@ -45,17 +47,22 @@ export function useInboxKeyboard(args: Args) {
   } = args;
 
   const focusedThread = focusedIndex >= 0 ? threads[focusedIndex] : null;
-  const targetIds = (): string[] => {
-    if (selectedIds.size > 0) return Array.from(selectedIds);
-    if (focusedThread) return [focusedThread.id];
-    if (selectedId) return [selectedId];
-    return [];
-  };
+  const targetIds = (): string[] =>
+    resolveTargetIds(selectedIds, selectedId, focusedThread?.id ?? null);
 
   const opts = { enableOnFormTags: false as const };
 
-  // ============ g-prefix sequence buffer ============
-  const gPendingRef = useRef<number | null>(null);
+  // Single-key handlers stay silent while a "g …" sequence is pending
+  // (react-hotkeys-hook listens on document, i.e. before the window-level
+  // resolver below clears the sequence).
+  const guard =
+    <A extends unknown[]>(fn: (...args: A) => unknown) =>
+    (...args: A) => {
+      if (isSequencePending()) return;
+      return fn(...args);
+    };
+
+  // ============ g-prefix sequence (state shared via lib/key-sequence) ============
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -66,19 +73,17 @@ export function useInboxKeyboard(args: Args) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       // Start sequence on plain "g"
-      if (e.key === "g" && gPendingRef.current === null) {
+      if (e.key === "g" && !isSequencePending()) {
         e.preventDefault();
-        gPendingRef.current = window.setTimeout(() => {
-          gPendingRef.current = null;
-        }, 1500);
+        startSequence();
         return;
       }
 
-      if (gPendingRef.current !== null) {
-        // Resolve sequence
+      if (isSequencePending()) {
+        // Resolve sequence. preventDefault lets later listeners (ThreadDetail)
+        // see the key was consumed.
         const k = e.key.toLowerCase();
-        clearTimeout(gPendingRef.current);
-        gPendingRef.current = null;
+        clearSequence();
         e.preventDefault();
 
         if (k === "i") {
@@ -131,119 +136,133 @@ export function useInboxKeyboard(args: Args) {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      if (gPendingRef.current !== null) clearTimeout(gPendingRef.current);
+      clearSequence();
     };
   }, [brands, navigate, reset, update]);
 
   // ============ navigation ============
   useHotkeys(
     "j",
-    () => {
+    guard(() => {
       const next = Math.min(threads.length - 1, focusedIndex + 1);
       if (next >= 0) setFocusedIndex(next);
-    },
+    }),
     opts,
     [threads, focusedIndex],
   );
 
   useHotkeys(
     "k",
-    () => {
+    guard(() => {
       const prev = Math.max(0, focusedIndex - 1);
       setFocusedIndex(prev);
-    },
+    }),
     opts,
     [focusedIndex],
   );
 
   useHotkeys(
     "o, enter",
-    (e) => {
+    guard((e: KeyboardEvent) => {
       e.preventDefault();
       if (focusedThread) setSelectedId(focusedThread.id);
-    },
+    }),
     opts,
     [focusedThread, setSelectedId],
   );
 
   useHotkeys(
     "e",
-    async () => {
+    guard(async () => {
       const ids = targetIds();
       if (!ids.length) return;
-      await archiveThreads(ids, qc);
-      toast.success(`Archived ${ids.length}`);
-      setSelectedIds(new Set());
-      if (selectedId && ids.includes(selectedId)) setSelectedId(null);
-    },
+      await runAction(async () => {
+        await archiveThreads(ids, qc);
+        setSelectedIds(new Set());
+        if (selectedId && ids.includes(selectedId)) setSelectedId(null);
+      }, `Archived ${ids.length}`);
+    }),
     opts,
     [threads, focusedIndex, selectedIds, selectedId],
   );
 
   useHotkeys(
     "u",
-    async () => {
+    guard(async () => {
       const ids = targetIds();
       if (!ids.length) return;
-      const t = focusedThread || threads.find((x) => x.id === selectedId);
+      const t = threads.find((x) => x.id === ids[0]);
       const makeUnread = !t || (t.unread_count || 0) === 0;
-      await setThreadsRead(ids, !makeUnread, qc);
-      toast.success(makeUnread ? "Marked unread" : "Marked read");
-    },
+      await runAction(
+        () => setThreadsRead(ids, !makeUnread, qc),
+        makeUnread ? "Marked unread" : "Marked read",
+      );
+    }),
     opts,
     [threads, focusedIndex, selectedIds, selectedId],
   );
 
   useHotkeys(
     "x",
-    () => {
+    guard(() => {
       if (focusedThread) toggleSelect(focusedThread.id);
-    },
+    }),
     opts,
     [focusedThread],
   );
 
   useHotkeys(
     "shift+3, mod+backspace",
-    async () => {
+    guard(async () => {
       const ids = targetIds();
       if (!ids.length) return;
-      await deleteThreads(ids, qc);
-      toast.success(`Deleted ${ids.length}`);
-      setSelectedIds(new Set());
-      if (selectedId && ids.includes(selectedId)) setSelectedId(null);
-    },
+      // deleteThreads shows its own toast with an undo action.
+      await runAction(async () => {
+        await deleteThreads(ids, qc);
+        setSelectedIds(new Set());
+        if (selectedId && ids.includes(selectedId)) setSelectedId(null);
+      });
+    }),
     opts,
     [threads, focusedIndex, selectedIds, selectedId],
   );
 
   useHotkeys(
     "y",
-    async () => {
+    guard(async () => {
       const ids = targetIds();
       if (!ids.length) return;
-      await archiveThreads(ids, qc);
-      const next = Math.min(threads.length - 1, focusedIndex);
-      setFocusedIndex(next);
-      const nextThread = threads[next + 1] || threads[next];
-      if (nextThread) setSelectedId(nextThread.id);
-    },
+      // Advance from the thread that was acted on, not from a stale focus.
+      const from = threads.findIndex((t) => t.id === ids[0]);
+      const base = from >= 0 ? from : focusedIndex;
+      const nextThread = threads.slice(base + 1).find((t) => !ids.includes(t.id));
+      await runAction(async () => {
+        await archiveThreads(ids, qc);
+        setSelectedIds(new Set());
+        if (nextThread) {
+          setFocusedIndex(base);
+          setSelectedId(nextThread.id);
+        } else {
+          setSelectedId(null);
+        }
+      });
+    }),
     opts,
-    [threads, focusedIndex],
+    [threads, focusedIndex, selectedIds, selectedId],
   );
 
-  useHotkeys("[", () => setSidebarCollapsed((b) => !b), opts);
+  useHotkeys("[", guard(() => setSidebarCollapsed((b) => !b)), opts);
   useHotkeys(
     "shift+d",
-    () => {
+    guard(() => {
       setDensity((d) =>
         d === "comfortable" ? "compact" : d === "compact" ? "dense" : "comfortable",
       );
-    },
+    }),
     opts,
   );
 
-  useHotkeys("shift+slash", () => setShowCheatSheet(true), opts);
+  useHotkeys("shift+slash", guard(() => setShowCheatSheet(true)), opts);
   useHotkeys("escape", () => setShowCheatSheet(false), { enableOnFormTags: true });
 
   // ⌘K / Ctrl+K → command palette
@@ -271,5 +290,5 @@ export function useInboxKeyboard(args: Args) {
   // Reply / forward / snooze / label / mute are handled in ThreadDetail
   // (because they need parentMessage / picker UI). Keep these placeholders
   // out of the global hook to avoid double-handling.
-  useHotkeys("c", () => toast.info("Compose — coming soon"), opts);
+  useHotkeys("c", guard(() => toast.info("Compose — coming soon")), opts);
 }

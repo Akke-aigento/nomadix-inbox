@@ -30,7 +30,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useBrandsQuery } from "@/hooks/useThreadsQuery";
 import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
-import { archiveThreads, deleteThreads, setThreadsRead } from "@/lib/inbox-actions";
+import { archiveThreads, deleteThreads, runAction, setThreadsRead } from "@/lib/inbox-actions";
+import { resolveTargetIds } from "@/lib/inbox-targets";
 import { toast } from "sonner";
 
 interface Props {
@@ -94,11 +95,11 @@ export function CommandPalette({
     },
   });
 
-  const targetIds = useMemo(() => {
-    if (selectedIds.size > 0) return Array.from(selectedIds);
-    if (selectedId) return [selectedId];
-    return [];
-  }, [selectedIds, selectedId]);
+  // The palette has no focused row: selection > open thread.
+  const targetIds = useMemo(
+    () => resolveTargetIds(selectedIds, selectedId, null),
+    [selectedIds, selectedId],
+  );
 
   const close = () => onOpenChange(false);
 
@@ -143,10 +144,12 @@ export function CommandPalette({
             <CommandGroup heading={`Actions (${targetIds.length} selected)`}>
               <CommandItem
                 onSelect={async () => {
-                  await archiveThreads(targetIds, qc);
-                  toast.success(`Archived ${targetIds.length}`);
-                  if (selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                   close();
+                  const ok = await runAction(
+                    () => archiveThreads(targetIds, qc),
+                    `Archived ${targetIds.length}`,
+                  );
+                  if (ok && selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                 }}
               >
                 <Archive className="mr-2 h-4 w-4" /> Archive
@@ -154,9 +157,11 @@ export function CommandPalette({
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
-                  await setThreadsRead(targetIds, true, qc);
-                  toast.success(`Marked ${targetIds.length} read`);
                   close();
+                  await runAction(
+                    () => setThreadsRead(targetIds, true, qc),
+                    `Marked ${targetIds.length} read`,
+                  );
                 }}
               >
                 <MailOpen className="mr-2 h-4 w-4" /> Mark read
@@ -164,19 +169,21 @@ export function CommandPalette({
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
-                  await setThreadsRead(targetIds, false, qc);
-                  toast.success(`Marked ${targetIds.length} unread`);
                   close();
+                  await runAction(
+                    () => setThreadsRead(targetIds, false, qc),
+                    `Marked ${targetIds.length} unread`,
+                  );
                 }}
               >
                 <Mail className="mr-2 h-4 w-4" /> Mark unread
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
-                  await deleteThreads(targetIds, qc);
-                  toast.success(`Deleted ${targetIds.length}`);
-                  if (selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                   close();
+                  // deleteThreads shows its own toast with an undo action.
+                  const ok = await runAction(() => deleteThreads(targetIds, qc));
+                  if (ok && selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete

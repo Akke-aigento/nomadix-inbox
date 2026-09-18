@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useLabelsQuery, useThreadLabels } from "@/hooks/useLabelsQuery";
-import { addLabelToThreads, removeLabelFromThreads } from "@/lib/inbox-actions";
+import { addLabelToThreads, runAction, removeLabelFromThreads } from "@/lib/inbox-actions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -58,9 +58,9 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
   const toggle = async (labelId: string) => {
     const state = appliedState[labelId];
     if (state === "all") {
-      await removeLabelFromThreads(threadIds, labelId, qc);
+      await runAction(() => removeLabelFromThreads(threadIds, labelId, qc));
     } else {
-      await addLabelToThreads(threadIds, labelId, qc);
+      await runAction(() => addLabelToThreads(threadIds, labelId, qc));
     }
   };
 
@@ -78,10 +78,12 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
       toast.error("Could not create label");
       return;
     }
-    await addLabelToThreads(threadIds, data.id, qc);
     qc.invalidateQueries({ queryKey: ["labels"] });
     setSearch("");
-    toast.success(`Label "${name}" toegevoegd`);
+    await runAction(
+      () => addLabelToThreads(threadIds, data.id, qc),
+      `Label "${name}" toegevoegd`,
+    );
   };
 
   return (

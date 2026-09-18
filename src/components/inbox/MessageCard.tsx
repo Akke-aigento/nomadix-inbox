@@ -21,6 +21,7 @@ export interface MessageRecord {
   matched_email_address: string | null;
   reply_to?: string | null;
   is_read: boolean;
+  is_outbound?: boolean | null;
 }
 
 function initials(name: string | null, email: string) {

@@ -13,6 +13,7 @@ import {
 import { ComposeEditor } from "./ComposeEditor";
 import { RecipientInput } from "./RecipientInput";
 import { sanitizeSignature } from "@/lib/sanitize";
+import { addressesToList, primaryReplyTarget } from "@/lib/reply-target";
 import { toast } from "sonner";
 import type { MessageRecord } from "./MessageCard";
 
@@ -49,32 +50,6 @@ interface Props {
   aiSeed?: { subject: string | null; body_html: string } | null;
 }
 
-function addressesToList(input: any): string[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map((x) => (typeof x === "string" ? x : x?.address))
-    .filter((s) => typeof s === "string" && s.length > 0);
-}
-
-/** Extract e-mail addresses from a Reply-To value (string, comma list, or array). */
-function parseReplyTo(input: any): string[] {
-  if (!input) return [];
-  const raw = Array.isArray(input)
-    ? input.map((x) => (typeof x === "string" ? x : x?.address)).filter(Boolean).join(",")
-    : typeof input === "string"
-      ? input
-      : typeof input?.address === "string"
-        ? input.address
-        : "";
-  const matches = String(raw).match(/[^\s<>,;"]+@[^\s<>,;"]+\.[^\s<>,;"]+/g);
-  return matches ? Array.from(new Set(matches.map((m) => m.trim()))) : [];
-}
-
-/** Primary recipient for a reply: Reply-To when present, else the sender. */
-function primaryReplyTarget(parent: MessageRecord): string[] {
-  const rt = parseReplyTo((parent as any).reply_to);
-  return rt.length ? rt : [parent.from_address];
-}
 
 function buildSubject(mode: ComposeMode, original: string | null): string {
   const base = (original || "").trim();
@@ -225,6 +200,7 @@ export function ReplyComposer({
 
   // When user changes brand_account, swap the signature in the body
   const onAccountChange = (newId: string) => {
+    markDirty();
     setAccountId(newId);
     const next = accounts.find((a) => a.id === newId);
     if (!next) return;
@@ -242,44 +218,103 @@ export function ReplyComposer({
     if (next.email_alias) setFromEmail(next.email_alias);
   };
 
-  // Auto-save (debounced)
-  const [draftId, setDraftId] = useState<string | null>(initialDraftId);
+  // Auto-save (debounced).
+  // - Only after a real user edit: opening the composer (or the signature /
+  //   AI seed being filled in) must not create a draft.
+  // - One save at a time, reading the draft id at execution time, so a second
+  //   save never inserts a duplicate while the first insert is still running.
+  const draftIdRef = useRef<string | null>(initialDraftId);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const debounceRef = useRef<number | null>(null);
-  const lastPayloadRef = useRef<string>("");
+  const dirtyRef = useRef(false);
+  const lastSavedSigRef = useRef<string>("");
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const latestRef = useRef({ subject, bodyHtml, to, cc, bcc });
+  latestRef.current = { subject, bodyHtml, to, cc, bcc };
 
-  useEffect(() => {
-    if (!brandId) return;
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(async () => {
-      const payload = {
-        draft_id: draftId,
+  const markDirty = () => {
+    dirtyRef.current = true;
+  };
+
+  const saveNow = () => {
+    if (!brandId || !dirtyRef.current) return saveChainRef.current;
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      const cur = latestRef.current;
+      const content = {
         brand_id: brandId,
         in_reply_to_message_id: parentMessage.id,
-        subject,
-        body_html: bodyHtml,
-        to_addresses: to,
-        cc_addresses: cc,
-        bcc_addresses: bcc,
+        subject: cur.subject,
+        body_html: cur.bodyHtml,
+        to_addresses: cur.to,
+        cc_addresses: cur.cc,
+        bcc_addresses: cur.bcc,
       };
-      const sig = JSON.stringify(payload);
-      if (sig === lastPayloadRef.current) return;
-      lastPayloadRef.current = sig;
+      const sig = JSON.stringify(content);
+      if (sig === lastSavedSigRef.current) return;
       setSaveStatus("saving");
-      const { data, error } = await supabase.functions.invoke("save-draft", { body: payload });
+      const { data, error } = await supabase.functions.invoke("save-draft", {
+        body: { draft_id: draftIdRef.current, ...content },
+      });
       if (error) {
         setSaveStatus("idle");
         return;
       }
-      if (data?.draft_id && !draftId) setDraftId(data.draft_id);
+      lastSavedSigRef.current = sig;
+      if (data?.draft_id && !draftIdRef.current) draftIdRef.current = data.draft_id;
       setSaveStatus("saved");
       window.setTimeout(() => setSaveStatus("idle"), 1500);
+    });
+    return saveChainRef.current;
+  };
+
+  useEffect(() => {
+    if (!brandId || !dirtyRef.current) return;
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = null;
+      void saveNow();
     }, 1500);
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
+    // saveNow reads everything through refs; re-running on its identity would
+    // restart the debounce on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, bodyHtml, to, cc, bcc, brandId]);
+
+  // Close (×): keep the draft, but flush a pending edit first so it isn't lost.
+  const handleClose = () => {
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+      void saveNow();
+    }
+    onCancel();
+  };
+
+  // Discard: throw the draft away, including one that is still being saved.
+  const [discarding, setDiscarding] = useState(false);
+  const handleDiscard = async () => {
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    dirtyRef.current = false;
+    setDiscarding(true);
+    await saveChainRef.current;
+    if (draftIdRef.current) {
+      const { error } = await supabase.from("drafts").delete().eq("id", draftIdRef.current);
+      if (error) {
+        setDiscarding(false);
+        toast.error("Concept kon niet verwijderd worden");
+        return;
+      }
+      draftIdRef.current = null;
+      qc.invalidateQueries({ queryKey: ["thread", threadId] });
+    }
+    setDiscarding(false);
+    onCancel();
+  };
 
   const [sending, setSending] = useState(false);
 
@@ -297,6 +332,14 @@ export function ReplyComposer({
       return;
     }
     setSending(true);
+    // Let an in-flight draft save land first, so send-email deletes the right
+    // draft and no save can re-create it afterwards.
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    dirtyRef.current = false;
+    await saveChainRef.current;
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: {
         thread_id: threadId,
@@ -309,7 +352,7 @@ export function ReplyComposer({
         bcc,
         subject,
         body_html: bodyHtml,
-        draft_id: draftId,
+        draft_id: draftIdRef.current,
       },
     });
     setSending(false);
@@ -351,7 +394,13 @@ export function ReplyComposer({
             </span>
           )}
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCancel}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={handleClose}
+          title="Sluiten (concept blijft bewaard)"
+        >
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -387,12 +436,34 @@ export function ReplyComposer({
         )}
       </div>
 
-      <RecipientInput label="To" values={to} onChange={setTo} placeholder="recipient@example.com" />
+      <RecipientInput
+        label="To"
+        values={to}
+        onChange={(next) => {
+          markDirty();
+          setTo(next);
+        }}
+        placeholder="recipient@example.com"
+      />
       {showCc ? (
-        <RecipientInput label="Cc" values={cc} onChange={setCc} />
+        <RecipientInput
+          label="Cc"
+          values={cc}
+          onChange={(next) => {
+            markDirty();
+            setCc(next);
+          }}
+        />
       ) : null}
       {showBcc ? (
-        <RecipientInput label="Bcc" values={bcc} onChange={setBcc} />
+        <RecipientInput
+          label="Bcc"
+          values={bcc}
+          onChange={(next) => {
+            markDirty();
+            setBcc(next);
+          }}
+        />
       ) : null}
       {(!showCc || !showBcc) && (
         <div className="flex justify-end gap-3 border-b border-border px-3 py-1 text-[11px]">
@@ -413,14 +484,23 @@ export function ReplyComposer({
         <span className="w-12 flex-none text-xs font-medium text-muted-foreground">Subject</span>
         <input
           value={subject}
-          onChange={(e) => setSubject(e.target.value)}
+          onChange={(e) => {
+            markDirty();
+            setSubject(e.target.value);
+          }}
           className="flex-1 bg-transparent py-1 text-sm focus:outline-none"
           placeholder="Subject"
         />
       </div>
 
       <div className="p-3">
-        <ComposeEditor initialHtml={bodyHtml} onChange={setBodyHtml} />
+        <ComposeEditor
+          initialHtml={bodyHtml}
+          onChange={(html, { userEdit }) => {
+            if (userEdit) markDirty();
+            setBodyHtml(html);
+          }}
+        />
       </div>
 
       <div className="flex items-center justify-between border-t border-border px-3 py-2">
@@ -428,7 +508,7 @@ export function ReplyComposer({
           ⌘↩ to send
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <Button variant="ghost" size="sm" onClick={handleDiscard} disabled={discarding || sending}>
             Discard
           </Button>
           <Button size="sm" onClick={handleSend} disabled={sending}>

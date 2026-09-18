@@ -11,7 +11,7 @@ import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { useThreadsQuery, useBrandsQuery } from "@/hooks/useThreadsQuery";
 import { useRealtimeInbox } from "@/hooks/useRealtimeInbox";
 import { useInboxKeyboard } from "@/hooks/useInboxKeyboard";
-import { archiveThreads, deleteThreads, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
+import { archiveThreads, deleteThreads, runAction, setThreadsRead, setThreadsMuted } from "@/lib/inbox-actions";
 import type { Density } from "@/components/inbox/ThreadRow";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -19,7 +19,6 @@ import { Archive, Trash2, MailOpen, X, BellOff } from "lucide-react";
 import { SnoozePicker } from "@/components/inbox/SnoozePicker";
 import { LabelPicker } from "@/components/inbox/LabelPicker";
 import { Clock, Tag } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const DENSITY_KEY = "inbox.density";
@@ -124,6 +123,14 @@ export default function InboxPage() {
     setFocusedIndex(0);
   }, [filters.view, filters.brands.join(","), filters.search, filters.sort]);
 
+  // Keep keyboard focus on the open thread, however it was opened (click,
+  // deeplink, palette), so list navigation continues from there.
+  useEffect(() => {
+    if (!selectedId) return;
+    const idx = sortedThreads.findIndex((t) => t.id === selectedId);
+    if (idx >= 0) setFocusedIndex(idx);
+  }, [selectedId, sortedThreads]);
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -149,30 +156,15 @@ export default function InboxPage() {
     setPaletteOpen,
   });
 
-  const bulkArchive = async () => {
+  const bulk = async (action: (ids: string[]) => Promise<void>, success?: (n: number) => string) => {
     const ids = Array.from(selectedIds);
-    await archiveThreads(ids, qc);
-    toast.success(`Archived ${ids.length}`);
-    setSelectedIds(new Set());
+    if (await runAction(() => action(ids), success?.(ids.length))) setSelectedIds(new Set());
   };
-  const bulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    await deleteThreads(ids, qc);
-    toast.success(`Deleted ${ids.length}`);
-    setSelectedIds(new Set());
-  };
-  const bulkMarkRead = async () => {
-    const ids = Array.from(selectedIds);
-    await setThreadsRead(ids, true, qc);
-    toast.success(`Marked ${ids.length} read`);
-    setSelectedIds(new Set());
-  };
-  const bulkMute = async () => {
-    const ids = Array.from(selectedIds);
-    await setThreadsMuted(ids, true, qc);
-    toast.success(`Muted ${ids.length}`);
-    setSelectedIds(new Set());
-  };
+  const bulkArchive = () => bulk((ids) => archiveThreads(ids, qc), (n) => `Archived ${n}`);
+  // deleteThreads shows its own toast with an undo action.
+  const bulkDelete = () => bulk((ids) => deleteThreads(ids, qc));
+  const bulkMarkRead = () => bulk((ids) => setThreadsRead(ids, true, qc), (n) => `Marked ${n} read`);
+  const bulkMute = () => bulk((ids) => setThreadsMuted(ids, true, qc), (n) => `Muted ${n}`);
 
   const showList = !isMobile || !selectedId;
   const showDetail = !isMobile || !!selectedId;
@@ -228,8 +220,12 @@ export default function InboxPage() {
             <ThreadDetail
               threadId={selectedId}
               onAdvance={() => {
-                const next = sortedThreads[focusedIndex] || null;
-                setSelectedId(next ? next.id : null);
+                // Next thread after the one that was open (it may already be
+                // gone from the list after archive/mute/snooze).
+                const idx = sortedThreads.findIndex((t) => t.id === selectedId);
+                const next =
+                  idx >= 0 ? sortedThreads[idx + 1] ?? null : sortedThreads[focusedIndex] ?? null;
+                setSelectedId(next && next.id !== selectedId ? next.id : null);
               }}
             />
           </ResizablePanel>

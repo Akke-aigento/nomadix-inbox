@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   initialHtml: string;
-  onChange: (html: string) => void;
+  /** `userEdit` is false for programmatic updates (tiptap v3 emits onUpdate on setContent). */
+  onChange: (html: string, meta: { userEdit: boolean }) => void;
   placeholder?: string;
   minHeight?: number;
 }
@@ -33,7 +34,7 @@ export function ComposeEditor({ initialHtml, onChange, placeholder = "Write your
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      onChange(editor.getHTML(), { userEdit: editor.isFocused });
     },
   });
 

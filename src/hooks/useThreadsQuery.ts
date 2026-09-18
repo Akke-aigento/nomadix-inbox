@@ -68,7 +68,36 @@ export function useThreadsQuery(filters: InboxFilters, brandSlugToId: Record<str
         query = query.gt("snoozed_until", nowIso).eq("is_archived", false);
       } else if (filters.view === "muted") {
         query = query.eq("is_muted", true).eq("is_archived", false);
+      } else if (filters.view === "sent") {
+        // Threads with at least one message we sent. Until the Sent folder is
+        // synced this only covers mail sent from this app (a handful), so an
+        // id list is fine here; the thread_list RPC (batch 2) replaces it.
+        const { data: sentRows, error: sentErr } = await supabase
+          .from("messages")
+          .select("thread_id")
+          .eq("is_outbound", true)
+          .not("thread_id", "is", null);
+        if (sentErr) throw sentErr;
+        const sentThreadIds = Array.from(new Set((sentRows || []).map((m) => m.thread_id as string)));
+        if (!sentThreadIds.length) return [] as ThreadRow[];
+        query = query.in("id", sentThreadIds);
+      } else if (filters.view === "drafts") {
+        // drafts has no thread_id: go via the message the draft replies to.
+        const { data: draftRows, error: draftErr } = await supabase
+          .from("drafts")
+          .select("message:messages!inner(thread_id)");
+        if (draftErr) throw draftErr;
+        const draftThreadIds = Array.from(
+          new Set(
+            (draftRows || [])
+              .map((d) => (d.message as { thread_id: string | null } | null)?.thread_id)
+              .filter((id): id is string => !!id),
+          ),
+        );
+        if (!draftThreadIds.length) return [] as ThreadRow[];
+        query = query.in("id", draftThreadIds);
       }
+      // "all": deliberately unscoped — All Mail includes archived and muted.
 
       // Brand filter
       const brandIds = filters.brands.map((s) => brandSlugToId[s]).filter(Boolean);
@@ -187,33 +216,20 @@ export function useBrandsQuery() {
 export function useSidebarCounts() {
   return useQuery({
     queryKey: ["sidebar-counts"],
+    // Counted server-side: fetching rows and counting in JS was capped at
+    // PostgREST's 1000-row limit (1023 active threads on 2026-09-18).
     queryFn: async () => {
-      const nowIso = new Date().toISOString();
-      const { data: threads } = await supabase
-        .from("threads")
-        .select("brand_id, unread_count, snoozed_until, is_muted")
-        .eq("is_archived", false)
-        .eq("is_muted", false)
-        .or(`snoozed_until.is.null,snoozed_until.lte.${nowIso}`);
-      const counts: Record<string, number> = {};
-      let total = 0;
-      for (const t of threads || []) {
-        if ((t.unread_count || 0) > 0) {
-          total++;
-          if (t.brand_id) counts[t.brand_id] = (counts[t.brand_id] || 0) + 1;
-        }
-      }
-
-      const { count: snoozedCount } = await supabase
-        .from("threads")
-        .select("id", { count: "exact", head: true })
-        .gt("snoozed_until", nowIso)
-        .eq("is_archived", false);
-
+      const { data, error } = await supabase.rpc("sidebar_counts");
+      if (error) throw error;
+      const counts = (data ?? {}) as {
+        perBrand?: Record<string, number>;
+        totalUnread?: number;
+        snoozed?: number;
+      };
       return {
-        perBrand: counts,
-        totalUnread: total,
-        snoozed: snoozedCount || 0,
+        perBrand: counts.perBrand ?? {},
+        totalUnread: counts.totalUnread ?? 0,
+        snoozed: counts.snoozed ?? 0,
       };
     },
     refetchInterval: 30000,

@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { snoozeThreads, SNOOZE_PRESETS } from "@/lib/inbox-actions";
+import { snoozeThreads, runAction, SNOOZE_PRESETS } from "@/lib/inbox-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -28,8 +28,11 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
 
   const handlePreset = async (until: Date, label: string) => {
     if (!threadIds.length) return;
-    await snoozeThreads(threadIds, until, qc);
-    toast.success(`Gesnoozed tot ${format(until, "d MMM HH:mm")} (${label})`);
+    const ok = await runAction(
+      () => snoozeThreads(threadIds, until, qc),
+      `Gesnoozed tot ${format(until, "d MMM HH:mm")} (${label})`,
+    );
+    if (!ok) return;
     setOpen(false);
     onSnoozed?.();
   };
@@ -44,8 +47,11 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
       toast.error("Kies een tijd in de toekomst");
       return;
     }
-    await snoozeThreads(threadIds, dt, qc);
-    toast.success(`Gesnoozed tot ${format(dt, "d MMM HH:mm")}`);
+    const ok = await runAction(
+      () => snoozeThreads(threadIds, dt, qc),
+      `Gesnoozed tot ${format(dt, "d MMM HH:mm")}`,
+    );
+    if (!ok) return;
     setOpen(false);
     onSnoozed?.();
   };
