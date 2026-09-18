@@ -153,8 +153,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fromDomain = from_email.split("@")[1] || "localhost";
-    const newMessageId = makeMessageId(fromDomain);
+    const newMessageId = makeMessageId(fromDomain || "localhost");
 
     // Migadu uses 465 SSL or 587 STARTTLS
     const usePort = emailAccount.smtp_port ?? 465;
