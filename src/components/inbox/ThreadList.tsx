@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Menu } from "lucide-react";
-import type { ThreadRow } from "@/hooks/useThreadsQuery";
+import { useBrandsQuery, type ThreadRow } from "@/hooks/useThreadsQuery";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,10 +57,11 @@ export function ThreadList({
   const items = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
+  const { data: brands = [] } = useBrandsQuery();
   const headerLabel = useMemo(() => {
     if (filters.brands.length === 1) {
       const slug = filters.brands[0];
-      return slug.charAt(0).toUpperCase() + slug.slice(1);
+      return brands.find((b) => b.slug === slug)?.name ?? slug;
     }
     switch (filters.view) {
       case "inbox":
@@ -80,7 +81,7 @@ export function ThreadList({
       default:
         return "Inbox";
     }
-  }, [filters]);
+  }, [filters, brands]);
 
   return (
     <div className="flex h-full flex-col bg-background">

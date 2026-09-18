@@ -34,7 +34,8 @@ interface Props {
   parentMessage: MessageRecord;
   mode: ComposeMode;
   onCancel: () => void;
-  onSent: () => void;
+  /** `message` is a local stand-in for the sent mail, shown on top until the refetch lands. */
+  onSent: (sent: { messageId: string | null; message: MessageRecord }) => void;
   draftId?: string | null;
   initialDraft?: {
     subject: string | null;
@@ -361,9 +362,26 @@ export function ReplyComposer({
       return;
     }
     toast.success("Message sent");
+    const sentId = (data as { message_id?: string } | null)?.message_id ?? null;
+    const sentAccount = accounts.find((a) => a.id === accountId);
+    const sentMessage: MessageRecord = {
+      id: sentId ?? `local-${Date.now()}`,
+      from_address: fromEmail,
+      from_name: sentAccount?.display_name ?? null,
+      to_addresses: to.map((address) => ({ address })),
+      cc_addresses: cc.map((address) => ({ address })),
+      subject,
+      body_html: bodyHtml,
+      body_text: null,
+      received_at: new Date().toISOString(),
+      matched_email_address: fromEmail,
+      is_read: true,
+      is_outbound: true,
+    };
+    // Optimistic first, then refetch: the server copy replaces the stand-in.
+    onSent({ messageId: sentId, message: sentMessage });
     qc.invalidateQueries({ queryKey: ["thread", threadId] });
     qc.invalidateQueries({ queryKey: ["threads"] });
-    onSent();
   };
 
   const fromOptions = useMemo(() => {
@@ -495,6 +513,10 @@ export function ReplyComposer({
 
       <div className="p-3">
         <ComposeEditor
+          autoFocus
+          onSubmit={() => {
+            if (!sending) void handleSend();
+          }}
           initialHtml={bodyHtml}
           onChange={(html, { userEdit }) => {
             if (userEdit) markDirty();

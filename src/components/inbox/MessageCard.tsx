@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { ChevronDown, ChevronRight, Reply, ReplyAll, Forward } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { AttachmentList, type AttachmentRow } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
+import { foldQuotedHtml, previewText } from "@/lib/thread-view";
 import type { ComposeMode } from "./ReplyComposer";
 
 export interface MessageRecord {
@@ -34,37 +35,36 @@ function initials(name: string | null, email: string) {
     .join("");
 }
 
-function foldQuoted(html: string): string {
-  return html
-    .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, (m) => `<details class="quoted"><summary>Show quoted text</summary>${m}</details>`)
-    .replace(/(<div[^>]*gmail_quote[\s\S]*?<\/div>)/gi, (m) => `<details class="quoted"><summary>Show quoted text</summary>${m}</details>`);
-}
-
 interface Props {
   message: MessageRecord;
   attachments: AttachmentRow[];
   brandName?: string;
-  defaultExpanded: boolean;
-  isLast: boolean;
+  /** Controlled by ThreadDetail: newest open, older closed, reset when a new message lands on top. */
+  expanded: boolean;
+  onToggle: () => void;
+  isNewest: boolean;
   onCompose?: (mode: ComposeMode, message: MessageRecord) => void;
 }
 
-export function MessageCard({ message, attachments, brandName, defaultExpanded, isLast, onCompose }: Props) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
+export function MessageCard({ message, attachments, brandName, expanded, onToggle, isNewest, onCompose }: Props) {
   const html = useMemo(() => {
-    if (message.body_html) return sanitizeEmailHtml(foldQuoted(message.body_html));
+    // Sanitize first, then fold: the <details> wrapper is added to clean HTML.
+    if (message.body_html) return foldQuotedHtml(sanitizeEmailHtml(message.body_html));
     if (message.body_text) return `<pre class="whitespace-pre-wrap font-sans text-sm">${message.body_text.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}</pre>`;
     return "";
   }, [message.body_html, message.body_text]);
 
-  const previewLine = (message.body_text || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  // Outbound messages have no body_text: preview from the HTML instead.
+  const previewLine = useMemo(
+    () => previewText(message.body_text, message.body_html),
+    [message.body_text, message.body_html],
+  );
   const date = new Date(message.received_at);
 
   return (
-    <div className={cn("border border-border/60 bg-card rounded-lg", isLast && "shadow-sm")}>
+    <div className={cn("border border-border/60 bg-card rounded-lg", isNewest && "shadow-sm")}>
       <button
-        onClick={() => setExpanded((e) => !e)}
+        onClick={onToggle}
         className="flex w-full items-start gap-3 p-4 text-left"
         aria-expanded={expanded}
       >
@@ -78,6 +78,11 @@ export function MessageCard({ message, attachments, brandName, defaultExpanded, 
             <span className="truncate text-sm font-semibold">{message.from_name || message.from_address}</span>
             {message.from_name && (
               <span className="truncate text-xs text-muted-foreground">&lt;{message.from_address}&gt;</span>
+            )}
+            {message.is_outbound && (
+              <span className="flex-none rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                Verzonden
+              </span>
             )}
           </div>
           {expanded ? (
@@ -112,7 +117,7 @@ export function MessageCard({ message, attachments, brandName, defaultExpanded, 
             dangerouslySetInnerHTML={{ __html: html }}
           />
           <AttachmentList attachments={attachments} />
-          {isLast && onCompose && (
+          {onCompose && (
             <div className="mt-4 flex gap-2 border-t border-border/60 pt-3">
               <Button size="sm" variant="outline" onClick={() => onCompose("reply", message)}>
                 <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply

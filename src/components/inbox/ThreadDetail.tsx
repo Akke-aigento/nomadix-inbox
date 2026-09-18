@@ -5,7 +5,6 @@ import {
   Trash2,
   MailOpen,
   Mail,
-  MoreHorizontal,
   ChevronLeft,
   Reply,
   Clock,
@@ -30,6 +29,7 @@ import {
 } from "@/lib/inbox-actions";
 import { pickReplyParent } from "@/lib/reply-target";
 import { isSequencePending } from "@/lib/key-sequence";
+import { newestFirst, nextExpansion, toggleExpanded, type ExpansionState } from "@/lib/thread-view";
 import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
 import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
@@ -74,7 +74,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           "id, from_address, from_name, to_addresses, cc_addresses, reply_to, subject, body_html, body_text, received_at, matched_email_address, is_read, is_outbound, ai_summary, needs_reply, urgency, sender_type, requires_action",
         )
         .eq("thread_id", threadId)
-        .order("received_at", { ascending: true });
+        .order("received_at", { ascending: false }); // newest on top (decision A)
       const { data: attachments } = await supabase
         .from("attachments")
         .select("id, message_id, filename, mime_type, size_bytes, storage_path, is_inline")
@@ -144,13 +144,16 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     setLabelOpen(false);
   }, [threadId]);
 
-  const latestAnalyzed = useMemo(() => {
-    const list = data?.messages ?? [];
-    for (let i = list.length - 1; i >= 0; i--) {
-      if ((list[i] as any).ai_summary) return list[i] as any;
-    }
-    return null;
-  }, [data?.messages]);
+  // Newest first. Sorted again here because the optimistic sent message is
+  // spliced into the cache by hand.
+  const messages = useMemo(() => newestFirst(data?.messages ?? []), [data?.messages]);
+  const newestId = messages[0]?.id ?? null;
+
+  const latestAnalyzed = useMemo(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI fields aren't on MessageRecord
+    () => (messages.find((m) => (m as any).ai_summary) as any) ?? null,
+    [messages],
+  );
   const aiSummary = latestAnalyzed?.ai_summary as string | undefined;
 
   // Thread-level reply answers the newest *incoming* message: after sending,
@@ -159,6 +162,24 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     () => (data?.messages?.length ? pickReplyParent(data.messages) : undefined),
     [data?.messages],
   );
+
+  // Expanded messages: only the newest by default; resets when the thread or
+  // its newest message changes, otherwise keeps what the user toggled.
+  const [expansionState, setExpansionState] = useState<ExpansionState | null>(null);
+  const expansion = nextExpansion(expansionState, threadId, newestId);
+  const toggleMessage = useCallback(
+    (id: string) => setExpansionState(toggleExpanded(expansion, id)),
+    [expansion],
+  );
+
+  // The view opens at the top (newest message, composer).
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollToTop = useCallback(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, []);
+  useEffect(() => {
+    scrollToTop();
+  }, [threadId, scrollToTop]);
 
   const openComposer = useCallback(
     (mode: ComposeMode, parent: MessageRecord, aiSeed: ComposerState["aiSeed"] = null) => {
@@ -178,11 +199,51 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           : null,
         aiSeed,
       });
+      // Composer sits on top: bring it into view (the editor focuses itself).
+      requestAnimationFrame(scrollToTop);
     },
-    [data?.drafts],
+    [data?.drafts, scrollToTop],
   );
 
-  const useAiDraft = useCallback(
+  // After sending: our message goes on top right away, composer closes.
+  const handleSent = useCallback(
+    ({ message }: { messageId: string | null; message: MessageRecord }) => {
+      const sentDraftId = composer?.draftId ?? null;
+      qc.setQueryData<typeof data>(["thread", threadId], (old) =>
+        old
+          ? {
+              ...old,
+              messages: [message, ...old.messages.filter((m) => m.id !== message.id)],
+              drafts: sentDraftId ? old.drafts.filter((d) => d.id !== sentDraftId) : old.drafts,
+            }
+          : old,
+      );
+      setComposer(null);
+      scrollToTop();
+    },
+    [composer?.draftId, qc, threadId, scrollToTop],
+  );
+
+  const toggleMute = useCallback(async () => {
+    if (!threadId) return;
+    const muted = !!data?.thread?.is_muted;
+    const ok = await runAction(
+      () => setThreadsMuted([threadId], !muted, qc),
+      muted ? "Mute opgeheven" : "Thread gemute",
+    );
+    if (ok && !muted) onAdvance?.();
+  }, [data?.thread, threadId, qc, onAdvance]);
+
+  // Command palette "Reply to current thread".
+  useEffect(() => {
+    const onReply = () => {
+      if (replyParent && !composer) openComposer("reply", replyParent);
+    };
+    window.addEventListener("nomadix:reply", onReply);
+    return () => window.removeEventListener("nomadix:reply", onReply);
+  }, [replyParent, composer, openComposer]);
+
+  const applyAiDraft = useCallback(
     (parent: MessageRecord, draft: AiDraftRow) => {
       openComposer("reply", parent, {
         subject: draft.draft_subject,
@@ -235,17 +296,12 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       }
       if (e.key === "m") {
         e.preventDefault();
-        const isMuted = (data?.thread as any)?.is_muted;
-        const ok = await runAction(
-          () => setThreadsMuted([threadId], !isMuted, qc),
-          isMuted ? "Mute opgeheven" : "Thread gemute",
-        );
-        if (ok && !isMuted) onAdvance?.();
+        await toggleMute();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [composer, replyParent, openComposer, threadId, data?.thread, qc, onAdvance]);
+  }, [composer, replyParent, openComposer, threadId, toggleMute]);
 
   if (!threadId) return <NoThreadSelected />;
   if (isLoading || !data?.thread) {
@@ -271,14 +327,6 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       anyUnread ? "Marked read" : "Marked unread",
     );
   };
-  const handleToggleMute = async () => {
-    const isMuted = (data.thread as any).is_muted;
-    const ok = await runAction(
-      () => setThreadsMuted([threadId], !isMuted, qc),
-      isMuted ? "Mute opgeheven" : "Thread gemute",
-    );
-    if (ok && !isMuted) onAdvance?.();
-  };
   const handleUnsnooze = async () => {
     await runAction(() => unsnoozeThreads([threadId], qc), "Snooze opgeheven");
   };
@@ -288,6 +336,20 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   const isArchived = (data.thread as any).is_archived as boolean;
   const snoozedUntil = (data.thread as any).snoozed_until as string | null;
   const isSnoozedNow = snoozedUntil && new Date(snoozedUntil).getTime() > Date.now();
+
+  // AI draft for the message a reply would answer (not simply the newest —
+  // that may be our own sent message).
+  const aiDraftForParent = replyParent
+    ? data.aiDrafts.find((d) => d.message_id === replyParent.id)
+    : undefined;
+  // Most recently edited draft of this thread (drafts come sorted updated_at desc).
+  const resumable = (() => {
+    for (const draft of data.drafts) {
+      const parent = messages.find((m) => m.id === draft.in_reply_to_message_id);
+      if (parent) return { draft, parent };
+    }
+    return null;
+  })();
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -365,7 +427,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={handleToggleMute}
+          onClick={toggleMute}
           title={isMuted ? "Mute opheffen (m)" : "Mute (m)"}
         >
           {isMuted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
@@ -384,9 +446,6 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         </Button>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDelete} title="Delete (#)">
           <Trash2 className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="More">
-          <MoreHorizontal className="h-4 w-4" />
         </Button>
       </header>
 
@@ -430,7 +489,43 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        {/* Decision A: everything you act on sits on top — composer, AI draft,
+            resumable draft — followed by the messages, newest first. */}
+        {composer && (
+          <div className="mb-3">
+            <ReplyComposer
+              key={`${composer.parent.id}:${composer.mode}:${composer.draftId ?? "new"}`}
+              threadId={threadId}
+              brandId={brandId}
+              parentMessage={composer.parent}
+              mode={composer.mode}
+              draftId={composer.draftId}
+              initialDraft={composer.initialDraft}
+              aiSeed={composer.aiSeed}
+              onCancel={() => setComposer(null)}
+              onSent={handleSent}
+            />
+          </div>
+        )}
+        {!composer && replyParent && aiDraftForParent && (
+          <div className="mb-3">
+            <AiDraftCard
+              draft={aiDraftForParent}
+              onUse={(d) => applyAiDraft(replyParent, d)}
+              onChanged={() => qc.invalidateQueries({ queryKey: ["thread", threadId] })}
+            />
+          </div>
+        )}
+        {!composer && resumable && (
+          <button
+            onClick={() => openComposer("reply", resumable.parent)}
+            className="mb-3 flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary transition hover:bg-primary/10"
+          >
+            <Reply className="h-3 w-3" />
+            Resume draft · {resumable.draft.subject || "(no subject)"}
+          </button>
+        )}
         {aiSummary ? (
           <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="mb-1.5 flex items-center gap-2">
@@ -468,121 +563,20 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           </div>
         )}
         <div className="space-y-3">
-          {data.messages.map((m, i) => {
-            const atts = data.attachments.filter((a) => a.message_id === m.id);
-            const draftForMsg = data.drafts.find((d) => d.in_reply_to_message_id === m.id);
-            const aiDraftForMsg = data.aiDrafts.find((d) => d.message_id === m.id);
-            const isLast = i === data.messages.length - 1;
-            return (
-              <div key={m.id} className="space-y-3">
-                <MessageCard
-                  message={m}
-                  attachments={atts}
-                  brandName={(data.thread!.brand as any)?.name}
-                  defaultExpanded={isLast || data.messages.length === 1}
-                  isLast={isLast}
-                  onCompose={!composer ? openComposer : undefined}
-                />
-                {!composer && isLast && aiDraftForMsg && (
-                  <AiDraftCard
-                    draft={aiDraftForMsg}
-                    onUse={(d) => useAiDraft(m, d)}
-                    onChanged={() => qc.invalidateQueries({ queryKey: ["thread", threadId] })}
-                  />
-                )}
-                {!composer && draftForMsg && isLast && (
-                  <button
-                    onClick={() => openComposer("reply", m)}
-                    className="ml-1 flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary transition hover:bg-primary/10"
-                  >
-                    <Reply className="h-3 w-3" />
-                    Resume draft · {draftForMsg.subject || "(no subject)"}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {composer && (
-            <div className="pt-2">
-              <ReplyComposer
-                threadId={threadId}
-                brandId={brandId}
-                parentMessage={composer.parent}
-                mode={composer.mode}
-                draftId={composer.draftId}
-                initialDraft={composer.initialDraft}
-                aiSeed={composer.aiSeed}
-                onCancel={() => setComposer(null)}
-                onSent={() => setComposer(null)}
-              />
-            </div>
-          )}
+          {messages.map((m, i) => (
+            <MessageCard
+              key={m.id}
+              message={m}
+              attachments={data.attachments.filter((a) => a.message_id === m.id)}
+              brandName={(data.thread!.brand as any)?.name}
+              expanded={expansion.ids.has(m.id)}
+              onToggle={() => toggleMessage(m.id)}
+              isNewest={i === 0}
+              onCompose={!composer ? openComposer : undefined}
+            />
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-/** Tiny helper that opens a SnoozePicker programmatically once from a keyboard trigger. */
-function SnoozePickerInline({
-  threadId,
-  onClose,
-  onSnoozed,
-}: {
-  threadId: string;
-  onClose: () => void;
-  onSnoozed?: () => void;
-}) {
-  // We rely on the regular SnoozePicker but force-open it via a controlled trigger.
-  // Render an invisible trigger anchored top-right; the popover content positions itself.
-  return (
-    <div className="pointer-events-none absolute right-4 top-14 z-30">
-      <div className="pointer-events-auto">
-        <SnoozePickerAuto
-          threadId={threadId}
-          onClose={onClose}
-          onSnoozed={() => {
-            onSnoozed?.();
-            onClose();
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Internal: SnoozePicker with default-open=true to act as a keyboard menu. */
-function SnoozePickerAuto({
-  threadId,
-  onClose,
-  onSnoozed,
-}: {
-  threadId: string;
-  onClose: () => void;
-  onSnoozed: () => void;
-}) {
-  // Use a key to force-mount and let the popover open immediately
-  return (
-    <div className="opacity-0">
-      <SnoozePicker
-        threadIds={[threadId]}
-        onSnoozed={onSnoozed}
-        trigger={
-          <button
-            ref={(el) => {
-              // Auto-click to open
-              if (el) {
-                queueMicrotask(() => el.click());
-                // Close hook: when the popover is closed via outside click, we won't know
-                // here. The picker calls onSnoozed for valid actions; otherwise user can press Escape.
-              }
-            }}
-            onBlur={onClose}
-          >
-            ·
-          </button>
-        }
-      />
     </div>
   );
 }

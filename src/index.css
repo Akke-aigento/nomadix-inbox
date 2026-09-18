@@ -125,3 +125,26 @@
     background-color: hsl(var(--surface-3));
   }
 }
+
+@layer components {
+  /* Quoted history in an email body, collapsed by foldQuotedHtml (lib/thread-view.ts). */
+  .email-body details.quoted {
+    margin-top: 0.75rem;
+  }
+  .email-body details.quoted > summary {
+    display: inline-block;
+    cursor: pointer;
+    list-style: none;
+    border-radius: 9999px;
+    background-color: hsl(var(--muted));
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+  }
+  .email-body details.quoted > summary::-webkit-details-marker {
+    display: none;
+  }
+  .email-body details.quoted[open] > summary {
+    margin-bottom: 0.5rem;
+  }
+}

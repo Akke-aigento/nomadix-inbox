@@ -2,7 +2,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Quote, Strikethrough } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,10 +12,25 @@ interface Props {
   onChange: (html: string, meta: { userEdit: boolean }) => void;
   placeholder?: string;
   minHeight?: number;
+  /** Put the caret at the start when the editor mounts (composer opened). */
+  autoFocus?: boolean;
+  /** ⌘↩ / Ctrl+↩ */
+  onSubmit?: () => void;
 }
 
-export function ComposeEditor({ initialHtml, onChange, placeholder = "Write your reply…", minHeight = 200 }: Props) {
+export function ComposeEditor({
+  initialHtml,
+  onChange,
+  placeholder = "Write your reply…",
+  minHeight = 200,
+  autoFocus = false,
+  onSubmit,
+}: Props) {
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
   const editor = useEditor({
+    autofocus: autoFocus ? "start" : false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
@@ -32,6 +47,14 @@ export function ComposeEditor({ initialHtml, onChange, placeholder = "Write your
         class: "prose prose-sm prose-invert max-w-none focus:outline-none px-4 py-3 text-sm",
         style: `min-height:${minHeight}px`,
       },
+      handleKeyDown: (_view, event) => {
+        if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && onSubmitRef.current) {
+          event.preventDefault();
+          onSubmitRef.current();
+          return true;
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML(), { userEdit: editor.isFocused });
@@ -42,7 +65,8 @@ export function ComposeEditor({ initialHtml, onChange, placeholder = "Write your
   useEffect(() => {
     if (!editor) return;
     if (editor.getHTML() !== initialHtml) {
-      editor.commands.setContent(initialHtml);
+      // Programmatic (signature / AI seed): must not look like a user edit.
+      editor.commands.setContent(initialHtml, { emitUpdate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialHtml]);

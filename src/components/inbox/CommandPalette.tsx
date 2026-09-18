@@ -207,8 +207,9 @@ export function CommandPalette({
           {selectedId && (
             <CommandItem
               onSelect={() => {
-                toast.info("Reply — coming in Phase 3C");
                 close();
+                // ThreadDetail listens and opens the composer on the open thread.
+                window.dispatchEvent(new Event("nomadix:reply"));
               }}
             >
               <Reply className="mr-2 h-4 w-4" /> Reply to current thread
