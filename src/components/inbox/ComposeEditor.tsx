@@ -29,6 +29,9 @@ export function ComposeEditor({
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
 
+  /** Whether the user has typed anything themselves (user-edit) since mount. */
+  const hasUserEditedRef = useRef(false);
+
   const editor = useEditor({
     autofocus: autoFocus ? "start" : false,
     extensions: [
