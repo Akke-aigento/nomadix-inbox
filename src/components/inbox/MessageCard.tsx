@@ -19,6 +19,7 @@ export interface MessageRecord {
   body_text: string | null;
   received_at: string;
   matched_email_address: string | null;
+  reply_to?: string | null;
   is_read: boolean;
 }
 

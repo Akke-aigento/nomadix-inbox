@@ -56,6 +56,26 @@ function addressesToList(input: any): string[] {
     .filter((s) => typeof s === "string" && s.length > 0);
 }
 
+/** Extract e-mail addresses from a Reply-To value (string, comma list, or array). */
+function parseReplyTo(input: any): string[] {
+  if (!input) return [];
+  const raw = Array.isArray(input)
+    ? input.map((x) => (typeof x === "string" ? x : x?.address)).filter(Boolean).join(",")
+    : typeof input === "string"
+      ? input
+      : typeof input?.address === "string"
+        ? input.address
+        : "";
+  const matches = String(raw).match(/[^\s<>,;"]+@[^\s<>,;"]+\.[^\s<>,;"]+/g);
+  return matches ? Array.from(new Set(matches.map((m) => m.trim()))) : [];
+}
+
+/** Primary recipient for a reply: Reply-To when present, else the sender. */
+function primaryReplyTarget(parent: MessageRecord): string[] {
+  const rt = parseReplyTo((parent as any).reply_to);
+  return rt.length ? rt : [parent.from_address];
+}
+
 function buildSubject(mode: ComposeMode, original: string | null): string {
   const base = (original || "").trim();
   const cleaned = base.replace(/^(re|fwd?|aw|antw|tr|fw|wg)\s*:\s*/gi, "").trim();
