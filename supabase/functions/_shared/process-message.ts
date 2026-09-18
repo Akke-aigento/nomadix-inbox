@@ -143,28 +143,10 @@ export async function processMessage(
     console.error("apply-rules failed for", message.id, e);
   }
 
-  await updateThreadStats(threadId, supabase);
+  await updateThreadStats(threadId, supabase, { newInboundReceivedAt: receivedAt });
 
-  // Mark message as needing AI analysis — actual AI runs separately, not in sync hot path
-  try {
-    await supabase
-      .from("messages")
-      .update({ needs_ai_analysis: true })
-      .eq("id", message.id);
-  } catch (e) {
-    console.error("Failed to mark needs_ai_analysis for", message.id, e);
-  }
-
-  if (detection.method === "unknown") {
-    try {
-      await supabase
-        .from("messages")
-        .update({ needs_brand_detection: true })
-        .eq("id", message.id);
-    } catch (e) {
-      console.error("Failed to mark needs_brand_detection for", message.id, e);
-    }
-  }
+  // AI analysis picks up messages without ai_summary on its own schedule;
+  // unbranded messages are recognisable by detected_via = 'unknown'.
 
   return {
     status: "created",

@@ -90,6 +90,7 @@ export async function findOrCreateThread(
 export async function updateThreadStats(
   threadId: string,
   supabase: any,
+  opts: { newInboundReceivedAt?: string | null } = {},
 ): Promise<void> {
   const { data: stats } = await supabase
     .from("messages")
@@ -107,6 +108,13 @@ export async function updateThreadStats(
     new Set(stats.map((m: any) => m.from_address).filter(Boolean)),
   );
 
+  // A new inbound reply pulls an archived thread back into the inbox — but
+  // only when it is the newest message, so a backfill of old mail never
+  // un-archives threads the user already dealt with.
+  const incoming = opts.newInboundReceivedAt;
+  const unarchive =
+    !!incoming && !!lastMessageAt && new Date(incoming).getTime() >= new Date(lastMessageAt).getTime();
+
   await supabase
     .from("threads")
     .update({
@@ -114,6 +122,7 @@ export async function updateThreadStats(
       unread_count: stats.filter((m: any) => !m.is_read).length,
       last_message_at: lastMessageAt,
       participants,
+      ...(unarchive ? { is_archived: false } : {}),
     })
     .eq("id", threadId);
 }

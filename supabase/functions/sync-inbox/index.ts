@@ -26,6 +26,14 @@ const PER_MESSAGE_TIMEOUT_MS = 12_000;
 // Per-fetch-step timeout: how long we wait for the IMAP stream to yield
 // the NEXT message before we give up on this batch entirely.
 const PER_FETCH_STEP_TIMEOUT_MS = 15_000;
+// Late retry of UIDs the cursor already passed: only start it when the run is
+// still young, wait at least this long between attempts on the same UID, give
+// up for good after this many attempts in total, and allow a slower fetch
+// (every known failure was a 15s fetch timeout).
+const LATE_RETRY_BUDGET_MS = 15_000;
+const LATE_RETRY_MIN_AGE_MS = 6 * 60 * 60 * 1000;
+const LATE_RETRY_MAX_ATTEMPTS = 10;
+const LATE_RETRY_FETCH_TIMEOUT_MS = 25_000;
 // Heartbeat update interval.
 const HEARTBEAT_INTERVAL_MS = 5_000;
 // A run is "stale" if its heartbeat is older than this when a new sync starts.
@@ -330,6 +338,84 @@ Deno.serve(async (req) => {
       }
     };
 
+    const lateRetryOne = async () => {
+      const cutoff = new Date(Date.now() - LATE_RETRY_MIN_AGE_MS).toISOString();
+      const { data: row } = await supabase
+        .from("sync_uid_retries")
+        .select("id, uid, attempts")
+        .eq("email_account_id", account_id)
+        .lte("uid", highestUid)
+        .lt("attempts", LATE_RETRY_MAX_ATTEMPTS)
+        .lt("updated_at", cutoff)
+        .order("updated_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!row) return;
+      const uid = Number(row.uid);
+
+      const dropRow = async (reason: string) => {
+        await supabase.from("sync_uid_retries").delete().eq("id", row.id);
+        console.log(`[sync] log=${logId} late-retry uid=${uid}: ${reason} — retry row removed`);
+      };
+
+      // Already recovered (e.g. by a backfill)?
+      const { data: present } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("email_account_id", account_id)
+        .eq("imap_uid", uid)
+        .limit(1)
+        .maybeSingle();
+      if (present) return dropRow("already present");
+
+      let client: any = null;
+      let lock: any = null;
+      try {
+        client = await openImap();
+        lock = await Promise.race([
+          client.getMailboxLock("INBOX"),
+          timeoutAfter(10_000, `imap lock late-retry uid=${uid}`),
+        ]);
+        const found = await Promise.race([
+          client.search({ uid: String(uid) }, { uid: true }),
+          timeoutAfter(10_000, `imap search late-retry uid=${uid}`),
+        ]) as any;
+        if (!Array.isArray(found) || !found.map(Number).includes(uid)) {
+          try { lock?.release?.(); } catch { /* ignore */ }
+          try { await client?.logout?.(); } catch { /* ignore */ }
+          return dropRow("no longer on server (deleted/moved), not a loss");
+        }
+        const one: any = await Promise.race([
+          client.fetchOne(String(uid), { source: true, uid: true, internalDate: true }, { uid: true }),
+          timeoutAfter(LATE_RETRY_FETCH_TIMEOUT_MS, `IMAP fetchOne late-retry uid=${uid}`),
+        ]);
+        try { lock?.release?.(); } catch { /* ignore */ }
+        try { await client?.logout?.(); } catch { /* ignore */ }
+        if (!one?.source) throw new Error("IMAP returned no source");
+
+        const result: any = await Promise.race([
+          processMessage(one.source, uid, "INBOX", account_id, supabase),
+          timeoutAfter(PER_MESSAGE_TIMEOUT_MS, `processMessage late-retry uid=${uid}`),
+        ]);
+        if (result?.status === "created") created++;
+        return dropRow("recovered");
+      } catch (err: any) {
+        try { lock?.release?.(); } catch { /* ignore */ }
+        try { await client?.logout?.(); } catch { /* ignore */ }
+        const m = err?.message ?? String(err);
+        await supabase
+          .from("sync_uid_retries")
+          .update({
+            attempts: Number(row.attempts ?? 0) + 1,
+            last_error: clampError(`late retry: ${m}`, 500),
+            updated_at: new Date().toISOString(),
+            gave_up: true,
+          })
+          .eq("id", row.id);
+        console.error(`[sync] log=${logId} late-retry uid=${uid} failed: ${m}`);
+      }
+    };
+
     const persistProgress = async (advanceTo: number) => {
       if (advanceTo > highestUid) highestUid = advanceTo;
       heartbeatStats = { fetched, highestUid };
@@ -352,6 +438,9 @@ Deno.serve(async (req) => {
       // Step 1: discover server highest UID and existing UIDs in the batch
       // range using a short-lived discovery connection.
       let existingUids: number[] = [];
+      // A failed SEARCH must never look like an empty range: jumping past it
+      // would silently skip every message in that range.
+      let searchFailed = false;
       let endUid = lastUid;
       const resumeFromUid = lastUid + 1;
       {
@@ -378,6 +467,7 @@ Deno.serve(async (req) => {
                   ? searchResult.map((u: any) => Number(u)).filter((n) => !isNaN(n)).sort((a, b) => a - b)
                   : [];
               } catch (err: any) {
+                searchFailed = true;
                 errors.push(`IMAP search ${range}: ${err?.message ?? String(err)}`);
               }
               console.log(
@@ -396,8 +486,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Empty range → jump past it
-      if (serverHighestUid >= resumeFromUid && existingUids.length === 0) {
+      // Empty range → jump past it (only when the SEARCH itself succeeded;
+      // on a failed search the run ends as error and the cursor stays put).
+      if (serverHighestUid >= resumeFromUid && existingUids.length === 0 && !searchFailed) {
         await persistProgress(endUid);
       }
 
@@ -504,6 +595,14 @@ Deno.serve(async (req) => {
           moreToDo = true;
           nextUid = lastProcessedUid + 1;
         }
+      }
+
+      // Step 3: late retry. A UID the cursor has already passed (given up
+      // after MAX_UID_ATTEMPTS, or skipped over by an older run) is otherwise
+      // never looked at again. One UID per run, never touches the cursor, and
+      // never counts as a run error.
+      if (Date.now() - startedAt < LATE_RETRY_BUDGET_MS) {
+        await lateRetryOne();
       }
     } catch (err: any) {
       crashed = err?.message ?? String(err);

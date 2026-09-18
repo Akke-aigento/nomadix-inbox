@@ -150,8 +150,8 @@ export async function detectBrand(
     }
   }
 
-  // No header match — defer AI detection to background processing.
-  // Message will be flagged with needs_brand_detection in process-message.ts.
+  // No header match. The message is stored with detected_via = 'unknown';
+  // there is no background re-detection yet.
   return { brand_id: null, method: "unknown", confidence: 0 };
 }
 
