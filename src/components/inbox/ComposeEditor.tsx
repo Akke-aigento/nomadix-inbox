@@ -60,6 +60,7 @@ export function ComposeEditor({
       },
     },
     onUpdate: ({ editor }) => {
+      if (editor.isFocused) hasUserEditedRef.current = true;
       onChange(editor.getHTML(), { userEdit: editor.isFocused });
     },
   });
@@ -70,6 +71,12 @@ export function ComposeEditor({
     if (editor.getHTML() !== initialHtml) {
       // Programmatic (signature / AI seed): must not look like a user edit.
       editor.commands.setContent(initialHtml, { emitUpdate: false });
+      // The signature loads async after mount; setContent moves the caret to the
+      // end (below signature/quote). Put it back at the start — but never yank
+      // the caret away from a user who is already typing.
+      if (autoFocus && !hasUserEditedRef.current) {
+        editor.commands.focus("start");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialHtml]);
