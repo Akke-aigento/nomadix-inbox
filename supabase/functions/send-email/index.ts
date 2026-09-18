@@ -16,7 +16,9 @@
 // }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { sendSmtpMail } from "../_shared/smtp-direct.ts";
+import { buildMimeMessage, sendSmtpMail, type SendMailOptions } from "../_shared/smtp-direct.ts";
+import { ImapDirectClient } from "../_shared/imap-direct.ts";
+import { normalizeRefs } from "../_shared/threading-rules.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +31,62 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+const SENT_COPY_TIMEOUT_MS = 15_000;
+
+/**
+ * Migadu keeps no copy of mail sent over SMTP (verified 2026-09-18: Sent of
+ * send@vanxcel.com empty after an app send). Put one in the Sent folder of the
+ * owner's MAIN mailbox — the synced one (sync_enabled), not the send@ login —
+ * so Apple Mail / webmail show the reply. Never fails the send.
+ */
+async function appendSentCopy(
+  admin: any,
+  userId: string,
+  rawMessage: string,
+): Promise<"ok" | "failed" | "skipped"> {
+  let client: ImapDirectClient | null = null;
+  try {
+    const { data: main } = await admin
+      .from("email_accounts")
+      .select("id, username, imap_host, imap_port")
+      .eq("owner_user_id", userId)
+      .eq("sync_enabled", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!main) return "skipped";
+    const { data: password, error: pwErr } = await admin.rpc("get_email_account_password", {
+      p_account_id: main.id,
+    });
+    if (pwErr || !password) throw new Error("no password for main mailbox");
+
+    const imap = new ImapDirectClient({
+      host: main.imap_host || "imap.migadu.com",
+      port: main.imap_port ?? 993,
+      username: main.username,
+      password: String(password),
+    });
+    client = imap;
+    await Promise.race([
+      (async () => {
+        await imap.connect();
+        await imap.login();
+        const sent = (await imap.findSpecialUse("\\Sent")) ?? "Sent";
+        await imap.append(sent, rawMessage, ["\\Seen"]);
+      })(),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`sent copy timeout after ${SENT_COPY_TIMEOUT_MS}ms`)), SENT_COPY_TIMEOUT_MS)
+      ),
+    ]);
+    return "ok";
+  } catch (e) {
+    console.error("send-email: Sent copy failed:", (e as Error).message ?? e);
+    return "failed";
+  } finally {
+    await client?.logout().catch(() => {});
+  }
 }
 
 function makeMessageId(domain: string): string {
@@ -129,27 +187,23 @@ Deno.serve(async (req) => {
     // Threading headers
     let inReplyToHeader: string | undefined;
     let referencesHeader: string | undefined;
-    let originalSubject: string | null = null;
+    let parentThreadId: string | null = null;
     if (in_reply_to_message_id) {
       const { data: parent } = await admin
         .from("messages")
-        .select("message_id_header, raw_headers, subject")
+        .select("message_id_header, raw_headers, thread_id")
         .eq("id", in_reply_to_message_id)
+        .eq("owner_user_id", userId)
         .maybeSingle();
+      parentThreadId = parent?.thread_id ?? null;
       if (parent?.message_id_header) {
         inReplyToHeader = parent.message_id_header;
-        const parentRefs =
-          (parent.raw_headers as any)?.references ||
-          (parent.raw_headers as any)?.References ||
-          "";
-        const refList = [
-          ...(typeof parentRefs === "string" ? parentRefs.split(/\s+/) : parentRefs),
-          parent.message_id_header,
-        ]
-          .filter(Boolean)
-          .join(" ");
-        referencesHeader = refList;
-        originalSubject = parent.subject;
+        // raw_headers.references can be header text, an array, or the JSON
+        // string process-message stores for non-string values.
+        const parentRefs = normalizeRefs(
+          (parent.raw_headers as any)?.references ?? (parent.raw_headers as any)?.References,
+        );
+        referencesHeader = Array.from(new Set([...parentRefs, parent.message_id_header])).join(" ");
       }
     }
 
@@ -165,22 +219,26 @@ Deno.serve(async (req) => {
     if (inReplyToHeader) headers["In-Reply-To"] = inReplyToHeader;
     if (referencesHeader) headers["References"] = referencesHeader;
 
+    const mail: SendMailOptions = {
+      host: emailAccount.smtp_host || "smtp.migadu.com",
+      port: usePort,
+      useTls,
+      username: emailAccount.username,
+      password: pwd,
+      fromEmail: from_email,
+      fromName: account.display_name ?? undefined,
+      to,
+      cc: cc.length ? cc : undefined,
+      bcc: bcc.length ? bcc : undefined,
+      subject,
+      html: body_html,
+      headers,
+    };
+    // Built once: the Sent copy below must be exactly what went out.
+    const rawMessage = buildMimeMessage(mail);
+
     try {
-      await sendSmtpMail({
-        host: emailAccount.smtp_host || "smtp.migadu.com",
-        port: usePort,
-        useTls,
-        username: emailAccount.username,
-        password: pwd,
-        fromEmail: from_email,
-        fromName: account.display_name ?? undefined,
-        to,
-        cc: cc.length ? cc : undefined,
-        bcc: bcc.length ? bcc : undefined,
-        subject,
-        html: body_html,
-        headers,
-      });
+      await sendSmtpMail({ ...mail, rawMessage });
     } catch (e) {
       console.error("SMTP send failed:", e);
       return jsonResponse({ error: `SMTP error: ${String((e as Error).message ?? e)}` }, 502);
@@ -192,7 +250,8 @@ Deno.serve(async (req) => {
       .from("messages")
       .insert({
         owner_user_id: userId,
-        thread_id: thread_id ?? null,
+        // Reply without an explicit thread: stay in the parent's thread.
+        thread_id: thread_id ?? parentThreadId,
         email_account_id: emailAccount.id,
         brand_id,
         message_id_header: newMessageId,
@@ -210,7 +269,12 @@ Deno.serve(async (req) => {
         is_outbound: true,
         matched_email_address: from_email,
         detected_via: "outbound",
-        raw_headers: { "Message-ID": newMessageId, "In-Reply-To": inReplyToHeader, References: referencesHeader },
+        // Lower-case keys, like inbound messages (process-message).
+        raw_headers: {
+          "message-id": newMessageId,
+          "in-reply-to": inReplyToHeader,
+          references: referencesHeader,
+        },
       })
       .select("id, thread_id")
       .single();
@@ -248,10 +312,13 @@ Deno.serve(async (req) => {
       await admin.from("drafts").delete().eq("id", draft_id).eq("owner_user_id", userId);
     }
 
+    const sentCopy = await appendSentCopy(admin, userId, rawMessage);
+
     return jsonResponse({
       ok: true,
       message_id: insertedMsg.id,
       thread_id: insertedMsg.thread_id,
+      sent_copy: sentCopy,
     });
   } catch (err) {
     console.error("send-email error:", err);

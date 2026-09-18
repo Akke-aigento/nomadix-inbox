@@ -1,18 +1,23 @@
-// Thread assembly: matches by References/In-Reply-To chain, falls back
-// to normalized subject within the same brand over the last 7 days.
+// Thread assembly.
+//  1. References / In-Reply-To chain (owner-scoped).
+//  2. Subject fallback — only for a non-automated *reply* ("Re:" subject or
+//     an unmatched References chain) from the same counterpart, within 30
+//     days before the message's own date. The old fallback (any mail with the
+//     same subject and brand in the last 7 days) glued unrelated notifications
+//     together: 29 threads / 112 messages on 2026-09-18.
+//  3. New thread.
 
-const SUBJECT_PREFIX_RE = /^(re|fwd|aw|antw|tr|fw|r|wg)\s*:\s*/gi;
+import {
+  isAutomated,
+  isReplySubject,
+  normalizeRefs,
+  normalizeSubject,
+  pickSubjectMatch,
+  SUBJECT_FALLBACK_WINDOW_DAYS,
+} from "./threading-rules.ts";
 
-function normalizeSubject(subject: string | null | undefined): string {
-  if (!subject) return "";
-  let s = String(subject).trim();
-  // Strip multiple stacked Re:/Fwd: prefixes
-  for (let i = 0; i < 5; i++) {
-    const next = s.replace(SUBJECT_PREFIX_RE, "").trim();
-    if (next === s) break;
-    s = next;
-  }
-  return s.toLowerCase();
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 export async function findOrCreateThread(
@@ -21,52 +26,56 @@ export async function findOrCreateThread(
   owner_user_id: string,
   supabase: any,
 ): Promise<string> {
+  const receivedAt =
+    parsed.date instanceof Date && !Number.isNaN(parsed.date.getTime())
+      ? parsed.date.toISOString()
+      : new Date().toISOString();
+
   // 1. References / In-Reply-To chain
-  const refs: string[] = [];
-  if (parsed.references) {
-    const r = Array.isArray(parsed.references)
-      ? parsed.references
-      : [parsed.references];
-    refs.push(...r.filter(Boolean).map(String));
-  }
-  if (parsed.inReplyTo) refs.push(String(parsed.inReplyTo));
+  const refs = Array.from(
+    new Set([...normalizeRefs(parsed.references), ...normalizeRefs(parsed.inReplyTo)]),
+  );
 
   if (refs.length > 0) {
     const { data: match } = await supabase
       .from("messages")
       .select("thread_id")
+      .eq("owner_user_id", owner_user_id)
       .in("message_id_header", refs)
       .not("thread_id", "is", null)
+      .order("received_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (match?.thread_id) return match.thread_id;
   }
 
-  // 2. Normalized subject within last 7 days for the same brand
+  // 2. Subject fallback — strict (see header comment)
   const normalized = normalizeSubject(parsed.subject);
-  if (normalized.length >= 3 && brand_id) {
-    const sevenDaysAgo = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000,
-    ).toISOString();
-    const { data: recentThreads } = await supabase
-      .from("threads")
-      .select("id, subject")
-      .eq("brand_id", brand_id)
-      .gte("last_message_at", sevenDaysAgo)
-      .order("last_message_at", { ascending: false })
+  const counterpart = String(parsed.from?.value?.[0]?.address ?? "").toLowerCase();
+  const isReply = isReplySubject(parsed.subject) || refs.length > 0;
+  if (
+    normalized.length >= 3 &&
+    counterpart &&
+    isReply &&
+    !isAutomated(parsed.headers, counterpart)
+  ) {
+    const until = new Date(receivedAt);
+    const since = new Date(until.getTime() - SUBJECT_FALLBACK_WINDOW_DAYS * 86_400_000);
+    const { data: candidates } = await supabase
+      .from("messages")
+      .select("thread_id, subject, from_address, to_addresses, received_at")
+      .eq("owner_user_id", owner_user_id)
+      .gte("received_at", since.toISOString())
+      .lte("received_at", until.toISOString())
+      .ilike("subject", `%${escapeLike(normalized)}%`)
+      .not("thread_id", "is", null)
+      .order("received_at", { ascending: false })
       .limit(50);
-
-    const match = recentThreads?.find(
-      (t: any) => normalizeSubject(t.subject) === normalized,
-    );
-    if (match) return match.id;
+    const threadId = pickSubjectMatch(candidates ?? [], normalized, counterpart);
+    if (threadId) return threadId;
   }
 
   // 3. Create new thread
-  const receivedAt =
-    parsed.date instanceof Date
-      ? parsed.date.toISOString()
-      : new Date().toISOString();
 
   const { data: newThread, error } = await supabase
     .from("threads")
@@ -76,7 +85,8 @@ export async function findOrCreateThread(
       subject: parsed.subject ?? null,
       preview: String(parsed.text ?? "").slice(0, 200),
       last_message_at: receivedAt,
-      participants: [parsed.from?.text].filter(Boolean),
+      // Same shape updateThreadStats writes: bare addresses.
+      participants: [parsed.from?.value?.[0]?.address].filter(Boolean),
       message_count: 0,
       unread_count: 0,
     })

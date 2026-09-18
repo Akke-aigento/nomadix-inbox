@@ -23,6 +23,9 @@ export interface SendMailOptions {
   html: string;
   text?: string;
   headers?: Record<string, string | undefined>;
+  /** Pre-built RFC 5322 message (from buildMimeMessage). Lets the caller
+   *  store the exact bytes it sent, e.g. an IMAP APPEND to Sent. */
+  rawMessage?: string;
 }
 
 function b64(s: string): string {
@@ -80,7 +83,7 @@ function buildAddress(email: string, name?: string): string {
   return `${encodeHeaderWord(name)} <${email}>`;
 }
 
-function buildMimeMessage(opts: SendMailOptions): string {
+export function buildMimeMessage(opts: SendMailOptions): string {
   const boundary = `=_lov_${crypto.randomUUID().replace(/-/g, "")}`;
   const lines: string[] = [];
   lines.push(`From: ${buildAddress(opts.fromEmail, opts.fromName)}`);
@@ -245,7 +248,7 @@ export async function sendSmtpMail(opts: SendMailOptions): Promise<void> {
 
     await smtp.cmd("DATA", 354);
 
-    const message = buildMimeMessage(opts);
+    const message = opts.rawMessage ?? buildMimeMessage(opts);
     // Dot-stuff: any line starting with "." must be prefixed with another "."
     const stuffed = message.replace(/\r\n\./g, "\r\n..");
     await smtp.write(stuffed);

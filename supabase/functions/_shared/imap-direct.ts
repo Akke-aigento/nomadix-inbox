@@ -2,7 +2,8 @@
 // Replaces ImapFlow for the body-fetch path because ImapFlow's async iterator
 // stalls on the Migadu server inside Deno's edge runtime.
 //
-// Supported commands: LOGIN, SELECT, UID SEARCH, UID FETCH (BODY.PEEK[]), LOGOUT.
+// Supported commands: LOGIN, SELECT, UID SEARCH, UID FETCH (BODY.PEEK[]),
+// LIST (special-use lookup), APPEND, LOGOUT.
 // Parses literal bodies ({N}) and yields { uid, source } per message.
 
 export interface ImapDirectOptions {
@@ -82,6 +83,47 @@ export class ImapDirectClient {
     const tag = this.nextTag();
     await this.send(`${tag} UID FETCH ${uid} BODY.PEEK[]\r\n`);
     return await this.readFetchResponse(tag, uid, timeoutMs);
+  }
+
+  /**
+   * Name of the mailbox carrying an RFC 6154 special-use attribute
+   * (e.g. "\\Sent", "\\Junk"), or null. Migadu: "Sent" / "Junk".
+   */
+  async findSpecialUse(attr: string): Promise<string | null> {
+    const tag = this.nextTag();
+    await this.send(`${tag} LIST "" "*"\r\n`);
+    const lines = await this.readUntilTag(tag, 15_000);
+    const want = attr.toLowerCase();
+    for (const line of lines) {
+      const m = line.match(/^\* LIST \(([^)]*)\) (?:"[^"]*"|NIL) (.+)$/i);
+      if (!m) continue;
+      const flags = m[1].toLowerCase().split(/\s+/);
+      if (!flags.includes(want)) continue;
+      const raw = m[2].trim();
+      return raw.startsWith('"') ? raw.slice(1, -1).replace(/\\(["\\])/g, "$1") : raw;
+    }
+    return null;
+  }
+
+  /** APPEND a full RFC 5322 message to `mailbox` (literal upload). */
+  async append(mailbox: string, message: string, flags: string[] = ["\\Seen"]): Promise<void> {
+    const bytes = encoder.encode(message);
+    const tag = this.nextTag();
+    const box = mailbox.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    await this.send(`${tag} APPEND "${box}" (${flags.join(" ")}) {${bytes.length}}\r\n`);
+    // Wait for the continuation request ("+ …") before sending the literal.
+    const deadline = Date.now() + 15_000;
+    while (true) {
+      const line = await this.readLine(Math.max(1, deadline - Date.now()));
+      if (line.startsWith("+")) break;
+      if (line.startsWith(`${tag} `)) throw new Error(`IMAP APPEND refused: ${line}`);
+    }
+    if (!this.conn) throw new Error("Not connected");
+    // conn.write may accept fewer bytes than offered; a message is large.
+    let off = 0;
+    while (off < bytes.length) off += await this.conn.write(bytes.subarray(off));
+    await this.send("\r\n");
+    await this.readUntilTag(tag, 30_000);
   }
 
   async logout(): Promise<void> {
