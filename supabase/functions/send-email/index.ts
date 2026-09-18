@@ -91,15 +91,31 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Brand account not found" }, 404);
     }
 
-    // Get the email account for this user (currently single account per user)
-    const { data: emailAccount, error: eaErr } = await admin
+    // Pick the sending account whose login domain matches the From domain.
+    // Migadu only allows sending as an address of the login's own domain,
+    // so there is deliberately NO fallback to an account of another domain.
+    const fromDomain = String(from_email).split("@")[1]?.toLowerCase() ?? "";
+    if (!fromDomain) {
+      return jsonResponse({ error: "Ongeldig afzenderadres" }, 400);
+    }
+
+    const { data: candidateAccounts, error: eaErr } = await admin
       .from("email_accounts")
       .select("id, username, smtp_host, smtp_port, smtp_use_tls")
-      .eq("owner_user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    if (eaErr || !emailAccount) {
-      return jsonResponse({ error: "No email account configured" }, 400);
+      .eq("owner_user_id", userId);
+    if (eaErr) {
+      return jsonResponse({ error: "Could not load email accounts" }, 500);
+    }
+    const emailAccount = (candidateAccounts ?? []).find(
+      (a: any) => String(a.username).split("@")[1]?.toLowerCase() === fromDomain,
+    );
+    if (!emailAccount) {
+      return jsonResponse(
+        {
+          error: `Geen verzendaccount voor domein ${fromDomain} — voeg er een toe in Instellingen > E-mailaccount`,
+        },
+        400,
+      );
     }
 
     // Fetch SMTP password
@@ -137,8 +153,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fromDomain = from_email.split("@")[1] || "localhost";
-    const newMessageId = makeMessageId(fromDomain);
+    const newMessageId = makeMessageId(fromDomain || "localhost");
 
     // Migadu uses 465 SSL or 587 STARTTLS
     const usePort = emailAccount.smtp_port ?? 465;

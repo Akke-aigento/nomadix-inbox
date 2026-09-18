@@ -56,6 +56,26 @@ function addressesToList(input: any): string[] {
     .filter((s) => typeof s === "string" && s.length > 0);
 }
 
+/** Extract e-mail addresses from a Reply-To value (string, comma list, or array). */
+function parseReplyTo(input: any): string[] {
+  if (!input) return [];
+  const raw = Array.isArray(input)
+    ? input.map((x) => (typeof x === "string" ? x : x?.address)).filter(Boolean).join(",")
+    : typeof input === "string"
+      ? input
+      : typeof input?.address === "string"
+        ? input.address
+        : "";
+  const matches = String(raw).match(/[^\s<>,;"]+@[^\s<>,;"]+\.[^\s<>,;"]+/g);
+  return matches ? Array.from(new Set(matches.map((m) => m.trim()))) : [];
+}
+
+/** Primary recipient for a reply: Reply-To when present, else the sender. */
+function primaryReplyTarget(parent: MessageRecord): string[] {
+  const rt = parseReplyTo((parent as any).reply_to);
+  return rt.length ? rt : [parent.from_address];
+}
+
 function buildSubject(mode: ComposeMode, original: string | null): string {
   const base = (original || "").trim();
   const cleaned = base.replace(/^(re|fwd?|aw|antw|tr|fw|wg)\s*:\s*/gi, "").trim();
@@ -145,17 +165,21 @@ export function ReplyComposer({
   const [to, setTo] = useState<string[]>(() => {
     if (initialDraft?.to_addresses) return addressesToList(initialDraft.to_addresses);
     if (mode === "forward") return [];
-    // Reply: to = sender (or reply-to if available)
-    return [parentMessage.from_address];
+    // Reply / reply-all: honour Reply-To when present, else the sender.
+    return primaryReplyTarget(parentMessage);
   });
   const [cc, setCc] = useState<string[]>(() => {
     if (initialDraft?.cc_addresses) return addressesToList(initialDraft.cc_addresses);
     if (mode === "replyAll") {
-      const others = addressesToList(parentMessage.to_addresses).filter(
-        (a) => a.toLowerCase() !== (parentMessage.matched_email_address || "").toLowerCase(),
+      const primary = primaryReplyTarget(parentMessage).map((a) => a.toLowerCase());
+      const exclude = new Set(
+        [...primary, (parentMessage.matched_email_address || "").toLowerCase()].filter(Boolean),
       );
+      const others = addressesToList(parentMessage.to_addresses);
       const ccs = addressesToList(parentMessage.cc_addresses);
-      return Array.from(new Set([...others, ...ccs]));
+      return Array.from(new Set([...others, ...ccs])).filter(
+        (a) => !exclude.has(a.toLowerCase()),
+      );
     }
     return [];
   });
