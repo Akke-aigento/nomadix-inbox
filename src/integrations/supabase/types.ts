@@ -961,15 +961,15 @@ export type Database = {
       sidebar_counts: { Args: never; Returns: Json }
       thread_list: {
         Args: {
-          p_brand_ids?: string[] | null
-          p_category_ids?: string[] | null
-          p_from?: string | null
+          p_brand_ids?: string[]
+          p_category_ids?: string[]
+          p_from?: string
           p_has_attachments?: boolean
-          p_label_ids?: string[] | null
+          p_label_ids?: string[]
           p_limit?: number
-          p_search?: string | null
-          p_sent_to?: string | null
-          p_since?: string | null
+          p_search?: string
+          p_sent_to?: string
+          p_since?: string
           p_sort?: string
           p_state?: string
           p_urgency?: string
