@@ -61,25 +61,19 @@ Deno.serve(async (req) => {
     const CRON_SECRET = Deno.env.get("SYNC_CRON_SECRET") ?? "";
     const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7) : "";
 
-    function decodeJwtRole(t: string): string | null {
-      try {
-        const parts = t.split(".");
-        if (parts.length < 2) return null;
-        const payload = JSON.parse(
-          atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-        );
-        return typeof payload?.role === "string" ? payload.role : null;
-      } catch {
-        return null;
-      }
-    }
-
-    const isServiceRole =
+    // Service-role access requires either the real service key, or a cron
+    // secret validated against the database. No unsigned-JWT shortcuts.
+    let isServiceRole =
       bearer === SERVICE_KEY ||
       apiKeyHeader === SERVICE_KEY ||
-      decodeJwtRole(bearer) === "service_role" ||
-      decodeJwtRole(apiKeyHeader) === "service_role" ||
       (CRON_SECRET.length > 0 && cronHeader === CRON_SECRET);
+
+    if (!isServiceRole && cronHeader.length > 0) {
+      const { data: cronOk } = await supabase.rpc("check_sync_cron_secret", {
+        p_secret: cronHeader,
+      });
+      if (cronOk === true) isServiceRole = true;
+    }
 
     console.log(`[backfill] auth: isServiceRole=${isServiceRole} bearer_len=${bearer.length} apikey_len=${apiKeyHeader.length}`);
 

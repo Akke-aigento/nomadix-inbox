@@ -951,6 +951,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_sync_cron_secret: { Args: { p_secret: string }; Returns: boolean }
       get_email_account_password: {
         Args: { p_account_id: string }
         Returns: string
