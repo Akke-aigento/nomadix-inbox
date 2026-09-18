@@ -256,19 +256,58 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
 
+    // ─── Auth: service-role (bearer/apikey/cron-secret) of ingelogde gebruiker ───
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const apiKeyHeader = req.headers.get("apikey") ?? "";
+    const cronHeader = req.headers.get("x-cron-secret") ?? "";
+    const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7) : "";
+
+    let isService =
+      bearer === serviceKey ||
+      apiKeyHeader === serviceKey;
+
+    if (!isService && cronHeader.length > 0) {
+      const { data: cronOk } = await supabase.rpc("check_sync_cron_secret", {
+        p_secret: cronHeader,
+      });
+      if (cronOk === true) isService = true;
+    }
+
+    let userId: string | null = null;
+    if (!isService) {
+      const userClient = createClient(
+        supabaseUrl,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        {
+          global: { headers: { Authorization: authHeader } },
+          auth: { persistSession: false },
+        },
+      );
+      const { data: userRes } = await userClient.auth.getUser();
+      if (!userRes?.user) {
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      userId = userRes.user.id;
+    }
+
     const body = (await req.json().catch(() => ({}))) as AnalyzeBody;
 
-    // Build target list
+    // Build target list (user-pad: altijd gescopeed op owner)
     let targetIds: string[] = [];
     if (body.message_id) targetIds = [body.message_id];
     else if (body.message_ids?.length) targetIds = body.message_ids;
     else {
       const limit = Math.min(Math.max(body.limit ?? 25, 1), 100);
-      const { data: pending } = await supabase
+      let pendingQuery = supabase
         .from("messages")
         .select("id")
         .is("ai_summary", null)
-        .eq("is_outbound", false)
+        .eq("is_outbound", false);
+      if (userId) pendingQuery = pendingQuery.eq("owner_user_id", userId);
+      const { data: pending } = await pendingQuery
         .order("received_at", { ascending: false })
         .limit(limit);
       targetIds = (pending || []).map((m: any) => m.id);
@@ -281,12 +320,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: messages } = await supabase
+    let messagesQuery = supabase
       .from("messages")
       .select(
         "id, owner_user_id, brand_id, thread_id, is_outbound, from_address, from_name, subject, body_text, body_html, matched_email_address",
       )
       .in("id", targetIds);
+    if (userId) messagesQuery = messagesQuery.eq("owner_user_id", userId);
+    const { data: messages } = await messagesQuery;
 
     let analyzed = 0;
     let errors = 0;
