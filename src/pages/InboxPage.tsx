@@ -47,40 +47,8 @@ export default function InboxPage() {
   const { data: threads = [], isLoading } = useThreadsQuery(filters, brandSlugToId);
   useRealtimeInbox();
 
-  // Sort threads client-side based on filters.sort
-  const sortedThreads = useMemo(() => {
-    const arr = [...threads];
-    switch (filters.sort) {
-      case "oldest":
-        arr.sort((a, b) => {
-          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-          return ta - tb;
-        });
-        break;
-      case "unread":
-        arr.sort((a, b) => {
-          const ua = (a.unread_count || 0) > 0 ? 1 : 0;
-          const ub = (b.unread_count || 0) > 0 ? 1 : 0;
-          if (ua !== ub) return ub - ua;
-          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-          return tb - ta;
-        });
-        break;
-      case "most-replies":
-        arr.sort((a, b) => (b.message_count || 0) - (a.message_count || 0));
-        break;
-      case "newest":
-      default:
-        arr.sort((a, b) => {
-          const ta = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-          const tb = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-          return tb - ta;
-        });
-    }
-    return arr;
-  }, [threads, filters.sort]);
+  // Sorted server-side by thread_list (filters.sort), before the limit.
+  const sortedThreads = threads;
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
