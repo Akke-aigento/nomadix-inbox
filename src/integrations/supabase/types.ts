@@ -425,6 +425,7 @@ export type Database = {
           smtp_host: string
           smtp_port: number
           smtp_use_tls: boolean
+          sync_enabled: boolean
           updated_at: string
           username: string
           vault_secret_id: string | null
@@ -443,6 +444,7 @@ export type Database = {
           smtp_host?: string
           smtp_port?: number
           smtp_use_tls?: boolean
+          sync_enabled?: boolean
           updated_at?: string
           username: string
           vault_secret_id?: string | null
@@ -461,6 +463,7 @@ export type Database = {
           smtp_host?: string
           smtp_port?: number
           smtp_use_tls?: boolean
+          sync_enabled?: boolean
           updated_at?: string
           username?: string
           vault_secret_id?: string | null
