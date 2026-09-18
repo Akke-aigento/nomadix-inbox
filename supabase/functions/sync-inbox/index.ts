@@ -74,32 +74,23 @@ Deno.serve(async (req) => {
       ? authHeader.slice(7)
       : "";
 
-    // Decode JWT payload (no signature check) to detect service_role tokens.
-    // We accept ANY JWT whose payload claims role=service_role because such
-    // a token can only be minted by Supabase itself with the project's secret.
-    function decodeJwtRole(t: string): string | null {
-      try {
-        const parts = t.split(".");
-        if (parts.length < 2) return null;
-        const payload = JSON.parse(
-          atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")),
-        );
-        return typeof payload?.role === "string" ? payload.role : null;
-      } catch {
-        return null;
-      }
-    }
-
-    const isServiceRole =
-      bearerToken === SERVICE_KEY ||
-      apiKeyHeader === SERVICE_KEY ||
-      decodeJwtRole(bearerToken) === "service_role" ||
-      decodeJwtRole(apiKeyHeader) === "service_role" ||
-      (CRON_SECRET.length > 0 && cronHeader === CRON_SECRET);
-
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false },
     });
+
+    // Service-role access requires either the real service key, or a cron
+    // secret validated against the database. No unsigned-JWT shortcuts.
+    let isServiceRole =
+      bearerToken === SERVICE_KEY ||
+      apiKeyHeader === SERVICE_KEY ||
+      (CRON_SECRET.length > 0 && cronHeader === CRON_SECRET);
+
+    if (!isServiceRole && cronHeader.length > 0) {
+      const { data: cronOk } = await supabase.rpc("check_sync_cron_secret", {
+        p_secret: cronHeader,
+      });
+      if (cronOk === true) isServiceRole = true;
+    }
 
     const { data: account, error: accErr } = await supabase
       .from("email_accounts")
