@@ -83,9 +83,54 @@ export default {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "var(--radius-lg)",
+        md: "var(--radius-md)",
+        sm: "var(--radius-sm)",
+      },
+      // Typografie, diepte en beweging komen uit de tokens in index.css.
+      // De maten zijn gelijk aan de Tailwind-defaults die de app al gebruikte
+      // (125x text-sm, 109x text-xs); nieuw is alleen 2xs.
+      fontSize: {
+        "2xs": ["var(--text-2xs)", { lineHeight: "var(--leading-tight)" }],
+        xs: ["var(--text-xs)", { lineHeight: "var(--leading-snug)" }],
+        sm: ["var(--text-sm)", { lineHeight: "var(--leading-snug)" }],
+        base: ["var(--text-base)", { lineHeight: "var(--leading-normal)" }],
+        lg: ["var(--text-lg)", { lineHeight: "var(--leading-snug)" }],
+        xl: ["var(--text-xl)", { lineHeight: "var(--leading-tight)" }],
+        "2xl": ["var(--text-2xl)", { lineHeight: "var(--leading-tight)" }],
+      },
+      letterSpacing: {
+        tight: "var(--tracking-tight)",
+        normal: "var(--tracking-normal)",
+        wide: "var(--tracking-wide)",
+      },
+      boxShadow: {
+        sm: "var(--shadow-sm)",
+        DEFAULT: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-lg)",
+      },
+      transitionTimingFunction: {
+        smooth: "var(--ease-smooth)",
+        swift: "var(--ease-swift)",
+      },
+      transitionDuration: {
+        fast: "var(--dur-fast)",
+        base: "var(--dur-base)",
+        slow: "var(--dur-slow)",
+      },
+      spacing: {
+        page: "var(--space-page)",
+        section: "var(--space-section)",
+        "safe-bottom": "var(--safe-bottom)",
+        "safe-top": "var(--safe-top)",
+      },
+      minHeight: {
+        touch: "44px",
+      },
+      minWidth: {
+        touch: "44px",
       },
       keyframes: {
         "accordion-down": {

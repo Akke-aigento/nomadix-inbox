@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { Checkbox } from "@/components/ui/checkbox";
 
-export type Density = "comfortable" | "compact" | "dense";
+// Density woont in lib/density (gedeeld met Instellingen > Voorkeuren).
+export type { Density } from "@/lib/density";
+import type { Density } from "@/lib/density";
 
 const HEIGHT: Record<Density, number> = {
   comfortable: 92,

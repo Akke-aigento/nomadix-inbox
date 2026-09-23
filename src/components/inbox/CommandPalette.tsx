@@ -32,6 +32,8 @@ import { useBrandsQuery } from "@/hooks/useThreadsQuery";
 import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
 import { archiveThreads, deleteThreads, runAction, setThreadsRead } from "@/lib/inbox-actions";
 import { resolveTargetIds } from "@/lib/inbox-targets";
+import { VIEWS } from "@/lib/views";
+import { useT } from "@/i18n";
 import { toast } from "sonner";
 
 interface Props {
@@ -42,16 +44,6 @@ interface Props {
   setSelectedId: (id: string | null) => void;
 }
 
-const VIEW_ITEMS: { key: ViewKind; label: string; icon: any }[] = [
-  { key: "inbox", label: "Inbox", icon: Inbox },
-  { key: "needs-reply", label: "Needs Reply", icon: MessageSquareWarning },
-  { key: "snoozed", label: "Snoozed", icon: Clock },
-  { key: "sent", label: "Sent", icon: Send },
-  { key: "drafts", label: "Drafts", icon: FileEdit },
-  { key: "archive", label: "Archive", icon: Archive },
-  { key: "all", label: "All Mail", icon: Mailbox },
-];
-
 export function CommandPalette({
   open,
   onOpenChange,
@@ -61,6 +53,7 @@ export function CommandPalette({
 }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const t = useT();
   const { filters, update, reset } = useInboxFilters();
   const { data: brands = [] } = useBrandsQuery();
   const [search, setSearch] = useState("");
@@ -221,16 +214,13 @@ export function CommandPalette({
         <CommandSeparator />
 
         <CommandGroup heading="Views">
-          {VIEW_ITEMS.map((v) => {
+          {VIEWS.map((v) => {
             const Icon = v.icon;
+            const label = t(v.labelKey);
             return (
-              <CommandItem
-                key={v.key}
-                value={`view ${v.label}`}
-                onSelect={() => goView(v.key)}
-              >
+              <CommandItem key={v.key} value={`view ${label}`} onSelect={() => goView(v.key)}>
                 <Icon className="mr-2 h-4 w-4" />
-                Go to {v.label}
+                {label}
               </CommandItem>
             );
           })}

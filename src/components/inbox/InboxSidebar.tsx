@@ -23,17 +23,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { ensureNoActiveSync } from "@/lib/sync-guard";
+import { VIEWS } from "@/lib/views";
+import { useT } from "@/i18n";
 
-const VIEWS: { key: ViewKind; label: string; icon: any; shortcut?: string }[] = [
-  { key: "inbox", label: "Inbox", icon: Inbox, shortcut: "g i" },
-  { key: "needs-reply", label: "Needs Reply", icon: MessageSquareWarning, shortcut: "g r" },
-  { key: "snoozed", label: "Snoozed", icon: Clock, shortcut: "g z" },
-  { key: "muted", label: "Muted", icon: BellOff, shortcut: "g m" },
-  { key: "sent", label: "Sent", icon: Send },
-  { key: "drafts", label: "Drafts", icon: FileEdit },
-  { key: "archive", label: "Archive", icon: Archive, shortcut: "g a" },
-  { key: "all", label: "All Mail", icon: Mailbox },
-];
 
 export function InboxSidebar({
   collapsed,
@@ -44,6 +36,7 @@ export function InboxSidebar({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT();
   const { filters, update } = useInboxFilters();
   const { data: brands } = useBrandsQuery();
   const { data: counts } = useSidebarCounts();
@@ -148,7 +141,7 @@ export function InboxSidebar({
                 collapsed={collapsed}
                 onClick={() => setView(v.key)}
                 icon={<Icon className="h-4 w-4" />}
-                label={v.label}
+                label={t(v.labelKey)}
                 shortcut={v.shortcut}
                 badge={badge && badge > 0 ? badge : undefined}
                 accentHsl="174 80% 40%"

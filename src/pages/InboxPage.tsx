@@ -20,16 +20,7 @@ import { SnoozePicker } from "@/components/inbox/SnoozePicker";
 import { LabelPicker } from "@/components/inbox/LabelPicker";
 import { Clock, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const DENSITY_KEY = "inbox.density";
-
-function loadDensity(): Density {
-  try {
-    const v = localStorage.getItem(DENSITY_KEY);
-    if (v === "compact" || v === "dense" || v === "comfortable") return v;
-  } catch {}
-  return "comfortable";
-}
+import { useDensity } from "@/lib/density";
 
 export default function InboxPage() {
   const navigate = useNavigate();
@@ -52,22 +43,12 @@ export default function InboxPage() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [density, setDensityState] = useState<Density>(() => loadDensity());
+  const [density, setDensity] = useDensity();
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCheatSheet, setShowCheatSheet] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
-  const setDensity = useCallback((d: Density | ((prev: Density) => Density)) => {
-    setDensityState((prev) => {
-      const next = typeof d === "function" ? (d as any)(prev) : d;
-      try {
-        localStorage.setItem(DENSITY_KEY, next);
-      } catch {}
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
