@@ -125,8 +125,16 @@ export default function InboxPage() {
   const bulkMute = () =>
     bulk((ids) => setThreadsMuted(ids, true, qc), (n) => t("inbox.bulk.muted", { count: n }));
 
-  // Vegen op een rij. Archiveren gaat meteen door, maar met ongedaan-knop.
-  const swipeArchive = useCallback(
+  // Vegen op een rij. Verwijderen gebruikt het bestaande pad: de rij is
+  // meteen weg, de echte delete volgt pas na de ongedaan-toast van 6 s.
+  const swipeDelete = useCallback(
+    (id: string) => {
+      void runAction(() => deleteThreads([id], qc));
+    },
+    [qc],
+  );
+  // Archiveren zit nu achter "Meer" en houdt daar zijn ongedaan-knop.
+  const rowArchive = useCallback(
     (id: string) => {
       void archiveThreadsWithUndo([id], qc);
     },
@@ -151,7 +159,7 @@ export default function InboxPage() {
         selectionMode,
         swipeOpenId,
         onSwipeOpenChange: (id: string, open: boolean) => setSwipeOpenId(open ? id : null),
-        onArchive: swipeArchive,
+        onDelete: swipeDelete,
         onToggleRead: swipeToggleRead,
         onMore: (id: string) => setMoreId(id),
         onLongPress: (id: string) => toggleSelect(id),
@@ -258,6 +266,17 @@ export default function InboxPage() {
           </SheetHeader>
           {moreId && (
             <div className="mt-2 flex flex-col">
+              <button
+                className="flex min-h-touch items-center gap-3 px-2 text-sm"
+                onClick={() => {
+                  const id = moreId;
+                  setMoreId(null);
+                  setSwipeOpenId(null);
+                  rowArchive(id);
+                }}
+              >
+                <Archive className="h-4 w-4" /> {t("inbox.bulk.archive")}
+              </button>
               <SnoozePicker
                 threadIds={[moreId]}
                 onSnoozed={() => {
@@ -291,18 +310,6 @@ export default function InboxPage() {
                 }}
               >
                 <BellOff className="h-4 w-4" /> {t("inbox.bulk.mute")}
-              </button>
-              <button
-                className="flex min-h-touch items-center gap-3 px-2 text-sm text-destructive"
-                onClick={() => {
-                  const id = moreId;
-                  setMoreId(null);
-                  setSwipeOpenId(null);
-                  // deleteThreads toont zelf een toast met ongedaan maken.
-                  void runAction(() => deleteThreads([id], qc));
-                }}
-              >
-                <Trash2 className="h-4 w-4" /> {t("inbox.bulk.delete")}
               </button>
             </div>
           )}

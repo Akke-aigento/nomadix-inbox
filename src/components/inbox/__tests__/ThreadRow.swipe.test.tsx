@@ -38,7 +38,7 @@ function setup(props: Partial<React.ComponentProps<typeof ThreadRowItem>> = {}) 
   const handlers = {
     onClick: vi.fn(),
     onToggleSelect: vi.fn(),
-    onArchive: vi.fn(),
+    onDelete: vi.fn(),
     onToggleRead: vi.fn(),
     onMore: vi.fn(),
     onLongPress: vi.fn(),
@@ -70,17 +70,17 @@ function swipe(el: HTMLElement, dx: number) {
 }
 
 describe("ThreadRowItem — vegen", () => {
-  it("archiveert bij een veeg ver naar links", () => {
-    const { row, onArchive, onSwipeOpenChange } = setup();
+  it("verwijdert bij een veeg ver naar links", () => {
+    const { row, onDelete, onSwipeOpenChange } = setup();
     swipe(row, -250);
-    expect(onArchive).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onSwipeOpenChange).toHaveBeenLastCalledWith(false);
   });
 
   it("zet de knoppen open bij een korte veeg naar links", () => {
-    const { row, onArchive, onSwipeOpenChange } = setup();
+    const { row, onDelete, onSwipeOpenChange } = setup();
     swipe(row, -100);
-    expect(onArchive).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
     expect(onSwipeOpenChange).toHaveBeenLastCalledWith(true);
   });
 
@@ -91,11 +91,11 @@ describe("ThreadRowItem — vegen", () => {
   });
 
   it("doet niets bij verticaal scrollen", () => {
-    const { row, onArchive, onToggleRead, onSwipeOpenChange } = setup();
+    const { row, onDelete, onToggleRead, onSwipeOpenChange } = setup();
     fireEvent.touchStart(row, { touches: [{ clientX: 200, clientY: 100 }] });
     fireEvent.touchMove(row, { touches: [{ clientX: 190, clientY: 240 }] });
     fireEvent.touchEnd(row, { changedTouches: [{ clientX: 190, clientY: 240 }] });
-    expect(onArchive).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
     expect(onToggleRead).not.toHaveBeenCalled();
     expect(onSwipeOpenChange).not.toHaveBeenCalled();
   });
@@ -115,9 +115,9 @@ describe("ThreadRowItem — vegen", () => {
   });
 
   it("veegt niet op desktop", () => {
-    const { row, onArchive } = setup({ touch: false });
+    const { row, onDelete } = setup({ touch: false });
     swipe(row, -250);
-    expect(onArchive).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });
 

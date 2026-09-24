@@ -20,16 +20,16 @@ describe("resolveSwipe", () => {
     expect(resolveSwipe(-120, WIDTH)).toBe("actions");
   });
 
-  it("archiveert pas voorbij de helft van de rij", () => {
+  it("verwijdert pas voorbij de helft van de rij", () => {
     expect(resolveSwipe(-194, WIDTH)).toBe("actions");
-    expect(resolveSwipe(-195, WIDTH)).toBe("archive");
-    expect(resolveSwipe(-380, WIDTH)).toBe("archive");
+    expect(resolveSwipe(-195, WIDTH)).toBe("delete");
+    expect(resolveSwipe(-380, WIDTH)).toBe("delete");
   });
 
   it("houdt op een smalle rij minstens twee keer de knoppendrempel aan", () => {
-    // Anders zou op een smal scherm één korte veeg al archiveren.
+    // Anders zou op een smal scherm één korte veeg al verwijderen.
     expect(resolveSwipe(-100, 200)).toBe("actions");
-    expect(resolveSwipe(-SWIPE_REVEAL * 2, 200)).toBe("archive");
+    expect(resolveSwipe(-SWIPE_REVEAL * 2, 200)).toBe("delete");
   });
 
   it("wisselt gelezen/ongelezen bij een veeg naar rechts", () => {

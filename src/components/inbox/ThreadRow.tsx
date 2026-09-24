@@ -4,7 +4,7 @@ import {
   AlertTriangle,
   MessageSquareReply,
   Sparkles,
-  Archive,
+  Trash2,
   Mail,
   MailOpen,
   MoreHorizontal,
@@ -59,7 +59,7 @@ interface Props {
   selectionMode?: boolean;
   swipeOpen?: boolean;
   onSwipeOpenChange?: (open: boolean) => void;
-  onArchive?: () => void;
+  onDelete?: () => void;
   onToggleRead?: () => void;
   onMore?: () => void;
   onLongPress?: () => void;
@@ -81,7 +81,7 @@ function ThreadRowImpl({
   selectionMode = false,
   swipeOpen = false,
   onSwipeOpenChange = NOOP,
-  onArchive = NOOP,
+  onDelete = NOOP,
   onToggleRead = NOOP,
   onMore = NOOP,
   onLongPress = NOOP,
@@ -105,7 +105,7 @@ function ThreadRowImpl({
     enabled: touch && !selectionMode,
     open: swipeOpen,
     onOpenChange: onSwipeOpenChange,
-    onArchive,
+    onDelete,
     onToggleRead,
   });
   const longPress = useLongPress(touch && !selectionMode, onLongPress);
@@ -147,8 +147,9 @@ function ThreadRowImpl({
 
   const showSwipeLayer =
     touch && (swipeOpen || swipe.dragging || swipe.offset !== 0);
-  const committing =
-    swipe.pending === "archive" || swipe.pending === "toggleRead";
+  // Ver naar links verwijdert; de achtergrond waarschuwt daarvoor.
+  const destructive = swipe.pending === "delete";
+  const committing = destructive || swipe.pending === "toggleRead";
 
   return (
     <div
@@ -160,9 +161,11 @@ function ThreadRowImpl({
           aria-hidden
           className={cn(
             "absolute inset-0 flex items-center justify-between px-4 text-xs font-medium",
-            committing
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground",
+            destructive
+              ? "bg-destructive text-destructive-foreground"
+              : committing
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground",
           )}
         >
           <span className="flex items-center gap-1.5">
@@ -174,8 +177,8 @@ function ThreadRowImpl({
             {isUnread ? t("inbox.bulk.markRead") : t("inbox.mobile.markUnread")}
           </span>
           <span className="flex items-center gap-1.5">
-            <Archive className="h-4 w-4" />
-            {t("inbox.bulk.archive")}
+            <Trash2 className="h-4 w-4" />
+            {t("inbox.bulk.delete")}
           </span>
         </div>
       )}
@@ -188,12 +191,12 @@ function ThreadRowImpl({
             onClick={(e) => {
               e.stopPropagation();
               onSwipeOpenChange(false);
-              onArchive();
+              onDelete();
             }}
-            className="flex flex-1 flex-col items-center justify-center gap-1 bg-primary text-2xs font-medium text-primary-foreground"
+            className="flex flex-1 flex-col items-center justify-center gap-1 bg-destructive text-2xs font-medium text-destructive-foreground"
           >
-            <Archive className="h-5 w-5" />
-            {t("inbox.bulk.archive")}
+            <Trash2 className="h-5 w-5" />
+            {t("inbox.bulk.delete")}
           </button>
           <button
             onClick={(e) => {

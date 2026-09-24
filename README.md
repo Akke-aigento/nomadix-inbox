@@ -39,10 +39,14 @@ lijst kun je vegen:
 
 | Gebaar | Wat er gebeurt |
 |---|---|
-| Kort naar links | Knoppen **Archiveren** en **Meer** blijven staan |
-| Ver naar links (voorbij de helft) | Meteen archiveren, met ongedaan-knop |
+| Kort naar links | Knoppen **Verwijderen** en **Meer** blijven staan |
+| Ver naar links (voorbij de helft) | Meteen verwijderen, met zes seconden ongedaan maken |
 | Naar rechts | Gelezen / ongelezen wisselen |
 | Lang indrukken | Selectiemodus, met de bulkbalk onderaan |
+
+Achter **Meer** staan Archiveren, Snoozen, Label en Dempen. Verwijderen is
+omkeerbaar zolang de toast staat: de rij verdwijnt meteen uit de lijst, maar
+de echte verwijdering gebeurt pas na zes seconden.
 
 De opsteller vult op een telefoon het scherm; de terugknop sluit hem in plaats
 van het gesprek, en de hoogte volgt het toetsenbord.

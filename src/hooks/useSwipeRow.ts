@@ -10,13 +10,13 @@ interface Options {
    *  altijd maar één rij tegelijk openstaat. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onArchive: () => void;
+  onDelete: () => void;
   onToggleRead: () => void;
 }
 
 /** Vegen op een rij. De verschuiving zit op de rij-inhoud, niet op de
  *  container: de virtualisatie van de lijst blijft zo ongemoeid. */
-export function useSwipeRow({ enabled, open, onOpenChange, onArchive, onToggleRead }: Options) {
+export function useSwipeRow({ enabled, open, onOpenChange, onDelete, onToggleRead }: Options) {
   const [drag, setDrag] = useState(0);
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; y: number; width: number } | null>(null);
@@ -86,9 +86,9 @@ export function useSwipeRow({ enabled, open, onOpenChange, onArchive, onToggleRe
     setDragging(false);
     const action = resolveSwipe(base + drag, s.width);
     setDrag(0);
-    if (action === "archive") {
+    if (action === "delete") {
       onOpenChange(false);
-      onArchive();
+      onDelete();
     } else if (action === "toggleRead") {
       onOpenChange(false);
       onToggleRead();
@@ -97,7 +97,7 @@ export function useSwipeRow({ enabled, open, onOpenChange, onArchive, onToggleRe
     } else {
       onOpenChange(false);
     }
-  }, [base, drag, onArchive, onOpenChange, onToggleRead]);
+  }, [base, drag, onDelete, onOpenChange, onToggleRead]);
 
   const offset = enabled ? base + drag : 0;
 

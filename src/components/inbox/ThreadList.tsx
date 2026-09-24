@@ -28,7 +28,7 @@ interface Props {
     selectionMode: boolean;
     swipeOpenId: string | null;
     onSwipeOpenChange: (id: string, open: boolean) => void;
-    onArchive: (id: string) => void;
+    onDelete: (id: string) => void;
     onToggleRead: (id: string) => void;
     onMore: (id: string) => void;
     onLongPress: (id: string) => void;
@@ -168,7 +168,7 @@ export function ThreadList({
                     selectionMode={touch?.selectionMode ?? false}
                     swipeOpen={touch?.swipeOpenId === t.id}
                     onSwipeOpenChange={(open) => touch?.onSwipeOpenChange(t.id, open)}
-                    onArchive={() => touch?.onArchive(t.id)}
+                    onDelete={() => touch?.onDelete(t.id)}
                     onToggleRead={() => touch?.onToggleRead(t.id)}
                     onMore={() => touch?.onMore(t.id)}
                     onLongPress={() => touch?.onLongPress(t.id)}
