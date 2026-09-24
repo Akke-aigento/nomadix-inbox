@@ -1,30 +1,33 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Hoogte van het zichtbare deel van het scherm. Op een telefoon schuift het
- * toetsenbord over de layout heen: zonder dit verdwijnen de knoppen eronder.
+ * Het zichtbare venster: hoogte én verschuiving. Op een telefoon schuift het
+ * toetsenbord over de layout heen, en iOS verschuift bovendien het venster als
+ * de gebruiker inzoomt. Zonder allebei verdwijnen de knoppen uit beeld.
  */
-export function useVisualViewportHeight(enabled: boolean): number | undefined {
-  const [height, setHeight] = useState<number | undefined>(undefined);
+export function useVisualViewport(
+  enabled: boolean,
+): { height: number; offsetTop: number } | undefined {
+  const [state, setState] = useState<{ height: number; offsetTop: number } | undefined>(undefined);
 
   useEffect(() => {
     if (!enabled) {
-      setHeight(undefined);
+      setState(undefined);
       return;
     }
     const vv = window.visualViewport;
     if (!vv) return;
-    const onResize = () => setHeight(vv.height);
-    onResize();
-    vv.addEventListener("resize", onResize);
-    vv.addEventListener("scroll", onResize);
+    const onChange = () => setState({ height: vv.height, offsetTop: vv.offsetTop });
+    onChange();
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
     return () => {
-      vv.removeEventListener("resize", onResize);
-      vv.removeEventListener("scroll", onResize);
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
     };
   }, [enabled]);
 
-  return height;
+  return state;
 }
 
 /**

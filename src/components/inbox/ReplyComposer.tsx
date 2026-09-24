@@ -412,12 +412,22 @@ export function ReplyComposer({
     >
       <div
         className={cn(
-          "flex flex-none items-center justify-between gap-2 border-b border-border px-3 py-2",
-          fullscreen && "pt-safe",
+          "flex flex-none items-center gap-2 border-b border-border px-3 py-2",
+          fullscreen ? "pt-safe" : "justify-between",
         )}
       >
-        <div className="flex items-center gap-2 text-xs">
-          <span className="font-medium">
+        {fullscreen && (
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            onClick={handleClose}
+            aria-label={t("inbox.composer.close")}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        )}
+        <div className={cn("flex items-center gap-2 text-xs", fullscreen && "min-w-0 flex-1")}>
+          <span className="truncate font-medium">
             {mode === "reply" && t("inbox.composer.reply")}
             {mode === "replyAll" && t("inbox.composer.replyAll")}
             {mode === "forward" && t("inbox.composer.forward")}
@@ -433,31 +443,44 @@ export function ReplyComposer({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {fullscreen && (
-            <Button size="sm" className="min-h-touch" onClick={handleSend} disabled={sending}>
-              {sending ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-1.5 h-4 w-4" />
-              )}
-              {t("inbox.composer.send")}
+        <div className="flex flex-none items-center gap-1">
+          {fullscreen ? (
+            <>
+              {/* Weggooien staat in de vaste kop, niet zwevend boven de tekst. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-touch"
+                onClick={handleDiscard}
+                disabled={discarding || sending}
+              >
+                {t("inbox.composer.discard")}
+              </Button>
+              <Button size="sm" className="min-h-touch" onClick={handleSend} disabled={sending}>
+                {sending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-1.5 h-4 w-4" />
+                )}
+                {t("inbox.composer.send")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={handleClose}
+              title={t("inbox.composer.close")}
+            >
+              <X className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size={fullscreen ? "icon-touch" : "icon"}
-            className={fullscreen ? undefined : "h-6 w-6"}
-            onClick={handleClose}
-            title={t("inbox.composer.close")}
-          >
-            <X className={fullscreen ? "h-5 w-5" : "h-3.5 w-3.5"} />
-          </Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">
+      <div className="flex flex-col gap-0.5 border-b border-border px-3 py-1.5 md:flex-row md:items-center md:gap-2">
+        <span className="text-xs font-medium text-muted-foreground md:w-12 md:flex-none">
           {t("inbox.composer.from")}
         </span>
         <Select value={accountId} onValueChange={onAccountChange}>
@@ -519,22 +542,28 @@ export function ReplyComposer({
         />
       ) : null}
       {(!showCc || !showBcc) && (
-        <div className="flex justify-end gap-3 border-b border-border px-3 py-1 text-2xs">
+        <div className="flex justify-end gap-2 border-b border-border px-3 py-1 text-2xs">
           {!showCc && (
-            <button onClick={() => setShowCc(true)} className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setShowCc(true)}
+              className="min-h-touch px-2 text-muted-foreground hover:text-foreground md:min-h-0"
+            >
               {t("inbox.composer.addCc")}
             </button>
           )}
           {!showBcc && (
-            <button onClick={() => setShowBcc(true)} className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setShowBcc(true)}
+              className="min-h-touch px-2 text-muted-foreground hover:text-foreground md:min-h-0"
+            >
               {t("inbox.composer.addBcc")}
             </button>
           )}
         </div>
       )}
 
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">
+      <div className="flex flex-col gap-0.5 border-b border-border px-3 py-1.5 md:flex-row md:items-center md:gap-2">
+        <span className="text-xs font-medium text-muted-foreground md:w-12 md:flex-none">
           {t("inbox.composer.subject")}
         </span>
         <input
@@ -543,12 +572,12 @@ export function ReplyComposer({
             markDirty();
             setSubject(e.target.value);
           }}
-          className="flex-1 bg-transparent py-1 text-sm focus:outline-none"
+          className="flex-1 bg-transparent py-1 text-base focus:outline-none md:text-sm"
           placeholder={t("inbox.composer.subject")}
         />
       </div>
 
-      <div className={cn("p-3", fullscreen && "min-h-0 flex-1 overflow-y-auto")}>
+      <div className={cn("p-3", fullscreen && "min-h-0 flex-1 overflow-y-auto pb-safe")}>
         <ComposeEditor
           autoFocus
           onSubmit={() => {
@@ -562,33 +591,27 @@ export function ReplyComposer({
         />
       </div>
 
-      <div
-        className={cn(
-          "flex flex-none items-center justify-between border-t border-border px-3 py-2",
-          fullscreen && "pb-safe",
-        )}
-      >
-        <div className="text-2xs text-muted-foreground">
-          {fullscreen ? "" : t("inbox.composer.sendHint")}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={fullscreen ? "min-h-touch" : undefined}
-            onClick={handleDiscard}
-            disabled={discarding || sending}
-          >
-            {t("inbox.composer.discard")}
-          </Button>
-          {!fullscreen && (
+      {/* Schermvullend zitten verzenden en weggooien in de kop; een tweede
+          balk onderaan zou alleen ruimte kosten boven het toetsenbord. */}
+      {!fullscreen && (
+        <div className="flex flex-none items-center justify-between border-t border-border px-3 py-2">
+          <div className="text-2xs text-muted-foreground">{t("inbox.composer.sendHint")}</div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDiscard}
+              disabled={discarding || sending}
+            >
+              {t("inbox.composer.discard")}
+            </Button>
             <Button size="sm" onClick={handleSend} disabled={sending}>
               {sending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
               {t("inbox.composer.send")}
             </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

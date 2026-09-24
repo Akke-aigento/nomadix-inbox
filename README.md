@@ -49,7 +49,16 @@ omkeerbaar zolang de toast staat: de rij verdwijnt meteen uit de lijst, maar
 de echte verwijdering gebeurt pas na zes seconden.
 
 De opsteller vult op een telefoon het scherm; de terugknop sluit hem in plaats
-van het gesprek, en de hoogte volgt het toetsenbord.
+van het gesprek, en hoogte én verschuiving volgen het zichtbare venster
+(`visualViewport`), zodat het toetsenbord de knoppen niet wegduwt. Verzenden en
+Weggooien staan in de vaste kop.
+
+Onder `md` staan de labels (Van/Aan/Cc/Bcc/Onderwerp) bóven hun veld en is elk
+invoerveld minstens 16px. Dat laatste is geen smaak: Safari zoomt het scherm in
+zodra je een veld met kleinere tekst aanraakt. Zet daarom nooit `text-sm` op een
+invoerveld zonder `md:`-voorvoegsel — en zet nóóit `maximum-scale` of
+`user-scalable=no` in de viewport-meta, want dat ontneemt slechtzienden het
+zoomen.
 
 ## Service worker
 
@@ -59,9 +68,11 @@ de lockfile. Vier afspraken die je niet stilzwijgend mag wijzigen:
 1. **`index.html` komt altijd van het netwerk**, nooit uit de cache. Alleen als
    je offline bent valt hij terug op de laatst geziene versie. Zonder die regel
    blijf je na een publish op een oude build hangen.
-2. **Het versienummer staat in de cachenaam** (`nomadix-v1`). Verhoog `VERSION`
-   in `public/sw.js` bij elke wijziging aan de worker; bij activatie wordt al
-   het oudere weggegooid.
+2. **De cachenaam draagt een versie per build.** `public/sw.js` bevat de
+   plaatshouder `__SW_VERSION__`; het plug-innetje `stampServiceWorker` in
+   `vite.config.ts` vervangt die bij elke build door een tijdstempel. Zo
+   verandert de cachenaam mee én ziet de browser een nieuwe worker — die
+   vergelijkt het bestand byte voor byte. Bij activatie gaat al het oudere weg.
 3. **`skipWaiting` gebeurt pas na bevestiging.** Een nieuwe versie meldt zich
    via een toast ("Er staat een nieuwe versie klaar"); pas als je daarop klikt
    neemt hij over en herlaadt de pagina.

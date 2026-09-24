@@ -42,7 +42,8 @@ import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBackToClose, useVisualViewportHeight } from "@/hooks/useMobileOverlay";
+import { useBackToClose, useVisualViewport } from "@/hooks/useMobileOverlay";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   threadId: string | null;
@@ -59,7 +60,10 @@ interface ComposerState {
   aiSeed: { subject: string | null; body_html: string } | null;
 }
 
-export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
+export function ThreadDetail({ threadId, onClose, onAdvance, isMobile: isMobileProp }: Props) {
+  // De overlay mag niet afhangen van één aanroeper: elk scherm smaller dan md
+  // krijgt de mobiele variant, hoe de opsteller ook geopend is.
+  const isMobile = useIsMobile() || !!isMobileProp;
   const t = useT();
   const { locale } = useI18n();
   const qc = useQueryClient();
@@ -128,8 +132,8 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
 
   // Mobiel: de opsteller vult het scherm. De terugknop sluit hem, en de
   // hoogte volgt het toetsenbord zodat Verzenden bereikbaar blijft.
-  const composerFullscreen = !!isMobile && !!composer;
-  const viewportHeight = useVisualViewportHeight(composerFullscreen);
+  const composerFullscreen = isMobile && !!composer;
+  const viewport = useVisualViewport(composerFullscreen);
   useBackToClose(composerFullscreen, () => setComposer(null));
 
   // Auto-mark messages as read — once per opened thread, so marking it unread
@@ -764,7 +768,12 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       {composerFullscreen && composer && (
         <div
           className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background"
-          style={{ height: viewportHeight ? `${viewportHeight}px` : "100dvh" }}
+          style={{
+            height: viewport ? `${viewport.height}px` : "100dvh",
+            // iOS verschuift het zichtbare venster als het toetsenbord opent of
+            // de gebruiker inzoomt; zonder dit staat de kop boven het scherm.
+            transform: viewport ? `translateY(${viewport.offsetTop}px)` : undefined,
+          }}
         >
           <ReplyComposer
             key={`${composer.parent.id}:${composer.mode}:${composer.draftId ?? "new"}`}

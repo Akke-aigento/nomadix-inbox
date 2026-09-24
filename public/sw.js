@@ -2,11 +2,13 @@
 // Regels, in deze volgorde:
 //  1. index.html komt ALTIJD van het netwerk, nooit uit de cache. Anders blijf
 //     je na een publish op een oude build hangen.
-//  2. Het versienummer zit in de cachenaam; bij activatie gaat al het oudere weg.
+//  2. De cachenaam draagt een versie die de build erin stempelt (zie
+//     vite.config.ts); bij activatie gaat al het oudere weg.
 //  3. skipWaiting gebeurt pas nadat de gebruiker in de toast bevestigt.
 //  4. Mail gaat nooit de cache in: alles richting Supabase blijft netwerk.
 //  5. Noodrem: /?sw=off meldt deze worker af en leegt alle caches (zie README).
-const VERSION = "v1";
+// Wordt tijdens de build vervangen door een tijdstempel.
+const VERSION = "__SW_VERSION__";
 const CACHE = `nomadix-${VERSION}`;
 
 // Alleen de schil. De gehashte build-assets komen er tijdens het gebruik bij.

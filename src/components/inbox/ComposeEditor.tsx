@@ -50,7 +50,9 @@ export function ComposeEditor({
     content: initialHtml,
     editorProps: {
       attributes: {
-        class: "prose prose-sm prose-invert max-w-none focus:outline-none px-4 py-3 text-sm",
+        // text-base onder md: Safari zoomt in op een veld kleiner dan 16px.
+        class:
+          "prose prose-sm prose-invert max-w-none focus:outline-none px-4 py-3 text-base md:text-sm",
         style: `min-height:${minHeight}px`,
       },
       handleKeyDown: (_view, event) => {

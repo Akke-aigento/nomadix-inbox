@@ -43,8 +43,12 @@ export function RecipientInput({ label, values, onChange, placeholder }: Props) 
   };
 
   return (
-    <div className="flex items-start gap-2 border-b border-border px-3 py-1.5">
-      <span className="mt-1.5 w-12 flex-none text-xs font-medium text-muted-foreground">{label}</span>
+    // Onder md staat het label bóven het veld: naast elkaar liepen lange
+    // adressen over het label heen op een telefoon.
+    <div className="flex flex-col gap-0.5 border-b border-border px-3 py-1.5 md:flex-row md:items-start md:gap-2">
+      <span className="text-xs font-medium text-muted-foreground md:mt-1.5 md:w-12 md:flex-none">
+        {label}
+      </span>
       <div className="flex flex-1 flex-wrap items-center gap-1">
         {values.map((v) => (
           <span
@@ -71,7 +75,8 @@ export function RecipientInput({ label, values, onChange, placeholder }: Props) 
           onBlur={() => draft.trim() && commit(draft)}
           placeholder={values.length === 0 ? placeholder : ""}
           className={cn(
-            "min-w-[160px] flex-1 bg-transparent py-1 text-sm placeholder:text-muted-foreground/60 focus:outline-none",
+            // text-base onder md: onder 16px zoomt iOS het scherm in bij focus.
+            "min-w-[160px] flex-1 bg-transparent py-1 text-base placeholder:text-muted-foreground/60 focus:outline-none md:text-sm",
             error && "text-destructive",
           )}
         />
