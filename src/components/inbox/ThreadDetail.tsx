@@ -41,6 +41,7 @@ import { LabelPicker } from "./LabelPicker";
 import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useBackToClose, useVisualViewportHeight } from "@/hooks/useMobileOverlay";
 
 interface Props {
@@ -322,8 +323,16 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   if (!threadId) return <NoThreadSelected />;
   if (isLoading || !data?.thread) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {t("common.loading")}
+      <div className="flex h-full flex-col bg-background" aria-busy="true">
+        <div className="flex h-14 flex-none items-center gap-3 border-b border-border px-4">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="ml-auto h-8 w-20" />
+        </div>
+        <div className="space-y-3 p-4">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       </div>
     );
   }
@@ -432,7 +441,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           <div className="flex items-center gap-2">
             <div className="truncate text-sm font-semibold">{data.thread.subject || t("inbox.row.noSubject")}</div>
             {isMuted && (
-              <span className="flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                 <BellOff className="h-2.5 w-2.5" /> {t("inbox.thread.muted")}
               </span>
             )}
@@ -450,7 +459,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
             {appliedLabels.map((l) => (
               <span
                 key={l.id}
-                className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className="flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-medium"
                 style={{ background: `${l.color}22`, color: l.color }}
               >
                 <Tag className="h-2.5 w-2.5" />
@@ -590,28 +599,28 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         {aiSummary ? (
           <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {t("inbox.thread.aiSummary")}
               </span>
               {latestAnalyzed?.urgency === "high" && (
-                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-destructive">
                   {t("inbox.row.urgent")}
                 </span>
               )}
               {latestAnalyzed?.needs_reply && (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-primary">
                   {t("inbox.thread.needsReply")}
                 </span>
               )}
               {latestAnalyzed?.requires_action && !latestAnalyzed?.needs_reply && (
-                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                <span className="rounded-full bg-warning/15 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide text-warning">
                   {t("inbox.thread.actionRequired")}
                 </span>
               )}
               {latestAnalyzed?.sender_type &&
                 latestAnalyzed.sender_type !== "human" &&
                 latestAnalyzed.sender_type !== "unknown" && (
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                     {latestAnalyzed.sender_type}
                   </span>
                 )}

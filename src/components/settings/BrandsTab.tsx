@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import BrandFormDialog, { type Brand } from "./BrandFormDialog";
 import { useT } from "@/i18n";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 
 export default function BrandsTab() {
   const t = useT();
@@ -109,7 +110,7 @@ export default function BrandsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold">{t("settings.brands.title")}</h2>
           <p className="text-xs text-muted-foreground">
@@ -122,7 +123,7 @@ export default function BrandsTab() {
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
-        <div className="grid grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="hidden items-center gap-3 md:grid md:grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
           <div></div>
           <div>{t("settings.brands.name")}</div>
@@ -132,7 +133,7 @@ export default function BrandsTab() {
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
+          <TableSkeleton />
         ) : brands.length === 0 ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.brands.empty")}</div>
         ) : (
@@ -171,7 +172,7 @@ export default function BrandsTab() {
       />
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.brands.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -218,7 +219,7 @@ function SortableRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 [&>*]:min-w-0 md:grid md:grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] md:gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
     >
       <button
         {...attributes}

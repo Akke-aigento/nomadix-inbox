@@ -118,7 +118,7 @@ export default function CategoryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="surface-1 max-w-xl">
+      <DialogContent className="surface-1 max-h-[90dvh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {category ? t("settings.category.editTitle") : t("settings.category.addTitle")}

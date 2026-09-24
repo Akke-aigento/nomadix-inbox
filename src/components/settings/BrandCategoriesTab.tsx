@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import CategoryFormDialog, { type BrandCategory } from "./CategoryFormDialog";
 import { useT } from "@/i18n";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 
 interface Props {
   brandId: string;
@@ -144,7 +145,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
           {t("settings.categories.subtitle")}
         </p>
@@ -159,7 +160,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
-        <div className="grid grid-cols-[28px_36px_minmax(0,1.2fr)_minmax(0,1.6fr)_28px_88px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="hidden items-center gap-3 md:grid md:grid-cols-[28px_36px_minmax(0,1.2fr)_minmax(0,1.6fr)_28px_88px_72px] border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
           <div></div>
           <div>{t("settings.brands.name")}</div>
@@ -170,7 +171,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
+          <TableSkeleton />
         ) : items.length === 0 ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.categories.empty")}</div>
         ) : (
@@ -207,7 +208,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       />
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.categories.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -227,7 +228,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       </AlertDialog>
 
       <AlertDialog open={resetting} onOpenChange={setResetting}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.categories.resetTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -275,7 +276,7 @@ function SortableCategoryRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[28px_36px_minmax(0,1.2fr)_minmax(0,1.6fr)_28px_88px_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 [&>*]:min-w-0 md:grid md:grid-cols-[28px_36px_minmax(0,1.2fr)_minmax(0,1.6fr)_28px_88px_72px] md:gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
     >
       <button
         {...attributes}

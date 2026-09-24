@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 
 interface Label {
   id: string;
@@ -75,7 +76,7 @@ export default function LabelsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold">{t("settings.labels.title")}</h2>
           <p className="text-xs text-muted-foreground">
@@ -116,7 +117,7 @@ export default function LabelsTab() {
         )}
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
+          <TableSkeleton />
         ) : labels.length === 0 && !adding ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.labels.empty")}</div>
         ) : (

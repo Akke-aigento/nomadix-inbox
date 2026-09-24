@@ -146,7 +146,7 @@ export function CommandPalette({
                 }}
               >
                 <Archive className="mr-2 h-4 w-4" /> {t("inbox.palette.archive")}
-                <span className="ml-auto text-[10px] text-muted-foreground">e</span>
+                <span className="ml-auto text-2xs text-muted-foreground">e</span>
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -158,7 +158,7 @@ export function CommandPalette({
                 }}
               >
                 <MailOpen className="mr-2 h-4 w-4" /> {t("inbox.palette.markRead")}
-                <span className="ml-auto text-[10px] text-muted-foreground">u</span>
+                <span className="ml-auto text-2xs text-muted-foreground">u</span>
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -180,7 +180,7 @@ export function CommandPalette({
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" /> {t("common.delete")}
-                <span className="ml-auto text-[10px] text-muted-foreground">⇧3</span>
+                <span className="ml-auto text-2xs text-muted-foreground">⇧3</span>
               </CommandItem>
             </CommandGroup>
             <CommandSeparator />
@@ -195,7 +195,7 @@ export function CommandPalette({
             }}
           >
             <PenSquare className="mr-2 h-4 w-4" /> {t("inbox.palette.newMessage")}
-            <span className="ml-auto text-[10px] text-muted-foreground">c</span>
+            <span className="ml-auto text-2xs text-muted-foreground">c</span>
           </CommandItem>
           {selectedId && (
             <CommandItem
@@ -206,7 +206,7 @@ export function CommandPalette({
               }}
             >
               <Reply className="mr-2 h-4 w-4" /> {t("inbox.palette.replyCurrent")}
-              <span className="ml-auto text-[10px] text-muted-foreground">r</span>
+              <span className="ml-auto text-2xs text-muted-foreground">r</span>
             </CommandItem>
           )}
         </CommandGroup>
@@ -242,7 +242,7 @@ export function CommandPalette({
                   />
                   {b.name}
                   {i < 9 && (
-                    <span className="ml-auto text-[10px] text-muted-foreground">g {i + 1}</span>
+                    <span className="ml-auto text-2xs text-muted-foreground">g {i + 1}</span>
                   )}
                 </CommandItem>
               ))}
@@ -284,7 +284,7 @@ export function CommandPalette({
                   />
                   <span className="truncate">{t.subject || "(no subject)"}</span>
                   {t.brand?.name && (
-                    <span className="ml-2 truncate text-[10px] text-muted-foreground">
+                    <span className="ml-2 truncate text-2xs text-muted-foreground">
                       {t.brand.name}
                     </span>
                   )}
@@ -312,7 +312,7 @@ export function CommandPalette({
             }}
           >
             <SettingsIcon className="mr-2 h-4 w-4" /> {t("inbox.palette.openSettings")}
-            <span className="ml-auto text-[10px] text-muted-foreground">g s</span>
+            <span className="ml-auto text-2xs text-muted-foreground">g s</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Plus, PlayCircle, Trash2 } from "lucide-react";
+import { MoreHorizontal, GripVertical, Pencil, Plus, PlayCircle, Trash2 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,13 @@ import RoutingRuleFormDialog, { type RoutingRule } from "@/components/rules/Rout
 import RuleTestDialog from "@/components/rules/RuleTestDialog";
 import { useI18n, useT } from "@/i18n";
 import { fmtDate } from "@/i18n/format";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function RulesPage() {
   const t = useT();
@@ -113,7 +120,7 @@ export default function RulesPage() {
 
   return (
     <AppShell>
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-section flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t("rules.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("rules.subtitle")}</p>
@@ -124,7 +131,7 @@ export default function RulesPage() {
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
-        <div className="grid grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+        <div className="hidden items-center gap-3 md:grid md:grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
           <div>{t("rules.col.name")}</div>
           <div>{t("rules.col.priority")}</div>
@@ -134,7 +141,7 @@ export default function RulesPage() {
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
+          <TableSkeleton />
         ) : rules.length === 0 ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">{t("rules.empty")}</div>
         ) : (
@@ -172,7 +179,7 @@ export default function RulesPage() {
       <RuleTestDialog rule={testing} onClose={() => setTesting(null)} />
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("rules.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -219,18 +226,21 @@ function SortableRuleRow({
   };
 
   const actionBadges: { label: string; key: string }[] = [];
-  if (rule.action_add_category_id) actionBadges.push({ label: "+ category", key: "cat" });
-  if (rule.action_add_label_id) actionBadges.push({ label: "+ label", key: "lbl" });
+  if (rule.action_add_category_id) actionBadges.push({ label: t("rules.badge.category"), key: "cat" });
+  if (rule.action_add_label_id) actionBadges.push({ label: t("rules.badge.label"), key: "lbl" });
   if (rule.action_set_urgency)
-    actionBadges.push({ label: `urgency: ${rule.action_set_urgency}`, key: "urg" });
-  if (rule.action_mark_read) actionBadges.push({ label: "mark read", key: "rd" });
-  if (rule.action_archive) actionBadges.push({ label: "archive", key: "ar" });
+    actionBadges.push({
+      label: t("rules.badge.urgency", { value: rule.action_set_urgency }),
+      key: "urg",
+    });
+  if (rule.action_mark_read) actionBadges.push({ label: t("rules.badge.markRead"), key: "rd" });
+  if (rule.action_archive) actionBadges.push({ label: t("rules.badge.archive"), key: "ar" });
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 [&>*]:min-w-0 md:grid md:grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] md:gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
     >
       <button
         {...attributes}
@@ -247,13 +257,15 @@ function SortableRuleRow({
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {[
-            rule.match_from_contains && `from ~ ${rule.match_from_contains}`,
-            rule.match_subject_contains && `subj ~ ${rule.match_subject_contains}`,
-            rule.match_to_contains && `to ~ ${rule.match_to_contains}`,
-            rule.match_has_header && `header: ${rule.match_has_header}`,
+            rule.match_from_contains &&
+              t("rules.match.from", { value: rule.match_from_contains }),
+            rule.match_subject_contains &&
+              t("rules.match.subject", { value: rule.match_subject_contains }),
+            rule.match_to_contains && t("rules.match.to", { value: rule.match_to_contains }),
+            rule.match_has_header && t("rules.match.header", { value: rule.match_has_header }),
           ]
             .filter(Boolean)
-            .join(" · ") || "no match conditions"}
+            .join(" · ") || t("rules.match.none")}
         </div>
       </div>
       <div className="font-mono text-xs">{rule.priority}</div>
@@ -262,35 +274,39 @@ function SortableRuleRow({
           <span className="text-xs text-muted-foreground">{t("rules.badge.none")}</span>
         ) : (
           actionBadges.map((b) => (
-            <Badge key={b.key} variant="secondary" className="text-[10px]">
+            <Badge key={b.key} variant="secondary" className="text-2xs">
               {b.label}
             </Badge>
           ))
         )}
       </div>
       <div className="text-xs text-muted-foreground">
-        {rule.times_matched ?? 0}× matched
+        {t("rules.stats.matched", { count: rule.times_matched ?? 0 })}
         {rule.last_matched_at && (
           <div className="truncate">
-            {fmtDate(rule.last_matched_at, locale)}
+            {t("rules.stats.last", { date: fmtDate(rule.last_matched_at, locale) })}
           </div>
         )}
       </div>
-      <div className="flex items-center justify-end gap-1">
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onTest} title={t("rules.action.test")}>
-          <PlayCircle className="h-3.5 w-3.5" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+      <div className="flex items-center justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon-touch" variant="ghost" aria-label={t("rules.col.edit")}>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onTest}>
+              <PlayCircle className="mr-2 h-4 w-4" /> {t("rules.action.test")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil className="mr-2 h-4 w-4" /> {t("common.edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> {t("common.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

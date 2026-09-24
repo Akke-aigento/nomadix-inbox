@@ -6,6 +6,7 @@ import { useT } from "@/i18n";
 import { viewDef } from "@/lib/views";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { EmptyInbox, NoResults } from "./EmptyStates";
 import { FilterChips } from "./FilterChips";
@@ -113,15 +114,19 @@ export function ThreadList({
 
       {/* List */}
       {loading ? (
-        <div className="flex flex-1 flex-col">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="border-b border-border/50 p-3">
+        <div className="flex flex-1 flex-col" aria-busy="true" aria-live="polite">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col justify-center gap-2 border-b border-border/50 px-3"
+              style={{ height: rowHeight }}
+            >
               <div className="flex items-center gap-3">
-                <div className="h-4 w-32 animate-pulse rounded bg-muted/40" />
-                <div className="h-4 flex-1 animate-pulse rounded bg-muted/40" />
-                <div className="h-3 w-10 animate-pulse rounded bg-muted/40" />
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-3.5 flex-1" />
+                <Skeleton className="h-3 w-8" />
               </div>
-              <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-muted/30" />
+              {density === "comfortable" && <Skeleton className="h-3 w-2/3" />}
             </div>
           ))}
         </div>

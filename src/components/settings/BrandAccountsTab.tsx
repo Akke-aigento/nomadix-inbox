@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import BrandAccountFormDialog, { type BrandAccount } from "./BrandAccountFormDialog";
 import { useT } from "@/i18n";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 
 interface Props {
   brandId: string;
@@ -103,9 +104,9 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
-          People who can send mail under this brand. Each has their own signature.
+          {t("settings.accounts.subtitle")}
         </p>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="h-4 w-4" /> {t("settings.accounts.add")}
@@ -114,7 +115,7 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
+          <TableSkeleton />
         ) : accounts.length === 0 ? (
           <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.accounts.empty")}</div>
         ) : (
@@ -153,7 +154,7 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
       />
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.accounts.removeTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -205,7 +206,7 @@ function SortableAccountRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[28px_40px_minmax(0,1fr)_auto_72px] items-center gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 [&>*]:min-w-0 md:grid md:grid-cols-[28px_40px_minmax(0,1fr)_auto_72px] md:gap-3 border-b border-border px-3 py-2 text-sm last:border-b-0 hover:surface-2"
     >
       <button
         {...attributes}

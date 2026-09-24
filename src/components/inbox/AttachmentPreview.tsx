@@ -7,6 +7,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { useT } from "@/i18n";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Configure PDF.js worker via CDN to avoid Vite worker bundling pain.
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -55,7 +56,7 @@ export function AttachmentList({ attachments }: { attachments: AttachmentRow[] }
               <Icon className="h-4 w-4 flex-none text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="truncate">{a.filename}</div>
-                <div className="text-[10px] text-muted-foreground">{formatBytes(a.size_bytes)}</div>
+                <div className="text-2xs text-muted-foreground">{formatBytes(a.size_bytes)}</div>
               </div>
             </button>
           );
@@ -90,7 +91,7 @@ function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; 
 
   return (
     <Dialog open={!!att} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden p-0">
+      <DialogContent className="max-h-[90dvh] max-w-4xl overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <div className="truncate text-sm font-medium">{att?.filename}</div>
           <div className="flex items-center gap-1">
@@ -108,7 +109,7 @@ function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; 
         </div>
         <div className="max-h-[80vh] overflow-auto p-4">
           {!url ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">Loading…</div>
+            <Skeleton className="h-64 w-full" />
           ) : isImage ? (
             <img src={url} alt={att?.filename} className="mx-auto max-h-[75vh]" />
           ) : isPdf ? (

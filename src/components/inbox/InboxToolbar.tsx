@@ -76,7 +76,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
           <PopoverContent align="end" className="w-64 p-3">
             <div className="space-y-3 text-sm">
               <div>
-                <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                <Label className="text-2xs uppercase tracking-wider text-muted-foreground">
                   {t("inbox.toolbar.state")}
                 </Label>
                 <div className="mt-1 grid grid-cols-3 gap-1">
@@ -118,7 +118,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
                 />
               </div>
               <div>
-                <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                <Label className="text-2xs uppercase tracking-wider text-muted-foreground">
                   {t("inbox.toolbar.dateRange")}
                 </Label>
                 <div className="mt-1 grid grid-cols-3 gap-1">
@@ -151,7 +151,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
+            <DropdownMenuLabel className="text-2xs uppercase tracking-wider">
               {t("inbox.toolbar.sortBy")}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

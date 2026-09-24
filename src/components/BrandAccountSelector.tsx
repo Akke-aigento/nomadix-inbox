@@ -94,7 +94,7 @@ export default function BrandAccountSelector({
                   {acc.avatar_url ? (
                     <AvatarImage src={acc.avatar_url} alt={acc.display_name} />
                   ) : null}
-                  <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+                  <AvatarFallback className="text-2xs">{initials}</AvatarFallback>
                 </Avatar>
                 <span>{acc.display_name}</span>
                 {acc.role_title && (

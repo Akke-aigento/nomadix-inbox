@@ -145,7 +145,6 @@ export function InboxSidebar({
                 label={t(v.labelKey)}
                 shortcut={v.shortcut}
                 badge={badge && badge > 0 ? badge : undefined}
-                accentHsl="174 80% 40%"
               />
             );
           })}
@@ -294,7 +293,7 @@ function Section({
   return (
     <div className="mb-4">
       {!collapsed && (
-        <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+        <div className="mb-1 px-2 text-2xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
           {title}
         </div>
       )}
@@ -312,7 +311,6 @@ function SidebarItem({
   shortcut,
   badge,
   accentColor,
-  accentHsl,
 }: {
   active: boolean;
   collapsed: boolean;
@@ -321,40 +319,43 @@ function SidebarItem({
   label: string;
   shortcut?: string;
   badge?: number;
+  /** De merkkleur uit de database; views vallen terug op de primaire kleur. */
   accentColor?: string;
-  accentHsl?: string;
 }) {
   return (
     <button
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        "group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+        "group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-fast ease-smooth",
         "hover:bg-[hsl(var(--sidebar-accent))]",
-        active && "bg-[hsl(var(--sidebar-accent))] text-foreground",
+        active ? "bg-[hsl(var(--sidebar-accent))] font-medium text-foreground" : "text-muted-foreground",
         collapsed && "justify-center",
       )}
       style={
-        active && accentColor
-          ? { boxShadow: `inset 2px 0 0 0 ${accentColor}` }
-          : active && accentHsl
-          ? { boxShadow: `inset 2px 0 0 0 hsl(${accentHsl})` }
+        active
+          ? { boxShadow: `inset 2px 0 0 0 ${accentColor || "hsl(var(--primary))"}` }
           : undefined
       }
     >
-      <span className="flex h-4 w-4 items-center justify-center text-muted-foreground group-hover:text-foreground">
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center",
+          active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+        )}
+      >
         {icon}
       </span>
       {!collapsed && (
         <>
           <span className="flex-1 truncate text-left">{label}</span>
           {badge !== undefined && (
-            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+            <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-2xs font-medium text-primary">
               {badge}
             </span>
           )}
           {shortcut && !badge && (
-            <span className="font-mono text-[10px] text-muted-foreground/50">{shortcut}</span>
+            <span className="font-mono text-2xs text-muted-foreground/50">{shortcut}</span>
           )}
         </>
       )}

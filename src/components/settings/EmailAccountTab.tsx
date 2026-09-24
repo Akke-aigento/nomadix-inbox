@@ -22,6 +22,7 @@ import { ensureNoActiveSync } from "@/lib/sync-guard";
 
 import { useI18n, useT } from "@/i18n";
 import { fmtDateTime } from "@/i18n/format";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 interface EmailAccount {
   id: string;
   label: string;
@@ -471,7 +472,7 @@ export default function EmailAccountTab() {
     );
   };
 
-  if (loading) return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
+  if (loading) return <TableSkeleton rows={5} />;
 
   const renderFields = (
     form: AccountForm,
@@ -733,7 +734,7 @@ export default function EmailAccountTab() {
       )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[90dvh] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("settings.email.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>

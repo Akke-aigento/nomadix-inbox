@@ -193,7 +193,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="surface-1 max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="surface-1 max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{rule ? "Edit rule" : "Add routing rule"}</DialogTitle>
           <DialogDescription>

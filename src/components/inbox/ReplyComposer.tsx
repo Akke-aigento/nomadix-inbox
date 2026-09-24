@@ -519,7 +519,7 @@ export function ReplyComposer({
         />
       ) : null}
       {(!showCc || !showBcc) && (
-        <div className="flex justify-end gap-3 border-b border-border px-3 py-1 text-[11px]">
+        <div className="flex justify-end gap-3 border-b border-border px-3 py-1 text-2xs">
           {!showCc && (
             <button onClick={() => setShowCc(true)} className="text-muted-foreground hover:text-foreground">
               {t("inbox.composer.addCc")}
@@ -568,7 +568,7 @@ export function ReplyComposer({
           fullscreen && "pb-safe",
         )}
       >
-        <div className="text-[11px] text-muted-foreground">
+        <div className="text-2xs text-muted-foreground">
           {fullscreen ? "" : t("inbox.composer.sendHint")}
         </div>
         <div className="flex items-center gap-2">

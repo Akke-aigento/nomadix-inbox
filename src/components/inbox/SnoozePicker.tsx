@@ -69,7 +69,7 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
         )}
       </PopoverTrigger>
       <PopoverContent align={align} className="w-72 p-2">
-        <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="px-1.5 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
           {t("inbox.snooze.title")}
         </div>
         <div className="space-y-0.5">
@@ -93,7 +93,7 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
           })}
         </div>
         <div className="mt-2 border-t border-border pt-2">
-          <div className="mb-1.5 flex items-center gap-1.5 px-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="mb-1.5 flex items-center gap-1.5 px-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
             <CalendarIcon className="h-3 w-3" /> {t("inbox.snooze.custom")}
           </div>
           <div className="flex gap-1.5 px-1.5">

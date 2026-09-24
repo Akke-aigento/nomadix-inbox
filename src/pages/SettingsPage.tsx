@@ -11,13 +11,13 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <div className="mb-6">
+      <div className="mb-section">
         <h1 className="text-2xl font-semibold tracking-tight">{t("settings.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <Tabs defaultValue="brands" className="w-full">
-        <TabsList className="surface-2">
+        <TabsList className="w-full justify-start overflow-x-auto surface-2 sm:w-auto">
           <TabsTrigger value="brands">{t("settings.tabs.brands")}</TabsTrigger>
           <TabsTrigger value="email">{t("settings.tabs.email")}</TabsTrigger>
           <TabsTrigger value="labels">{t("settings.tabs.labels")}</TabsTrigger>

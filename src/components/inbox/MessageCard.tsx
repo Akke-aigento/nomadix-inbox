@@ -84,7 +84,7 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
               <span className="truncate text-xs text-muted-foreground">&lt;{message.from_address}&gt;</span>
             )}
             {message.is_outbound && (
-              <span className="flex-none rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="flex-none rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary">
                 {t("inbox.message.sent")}
               </span>
             )}

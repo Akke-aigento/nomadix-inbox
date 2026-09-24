@@ -97,7 +97,7 @@ export default function RuleTestDialog({ rule, onClose }: Props) {
 
   return (
     <Dialog open={!!rule} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="surface-1 max-h-[80vh] max-w-2xl overflow-hidden">
+      <DialogContent className="surface-1 max-h-[85dvh] max-w-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Test rule: {rule?.name}</DialogTitle>
           <DialogDescription>

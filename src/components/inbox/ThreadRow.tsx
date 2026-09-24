@@ -190,7 +190,7 @@ function ThreadRowImpl({
               onSwipeOpenChange(false);
               onArchive();
             }}
-            className="flex flex-1 flex-col items-center justify-center gap-1 bg-primary text-[11px] font-medium text-primary-foreground"
+            className="flex flex-1 flex-col items-center justify-center gap-1 bg-primary text-2xs font-medium text-primary-foreground"
           >
             <Archive className="h-5 w-5" />
             {t("inbox.bulk.archive")}
@@ -200,7 +200,7 @@ function ThreadRowImpl({
               e.stopPropagation();
               onMore();
             }}
-            className="flex flex-1 flex-col items-center justify-center gap-1 bg-surface-3 text-[11px] font-medium text-foreground"
+            className="flex flex-1 flex-col items-center justify-center gap-1 bg-surface-3 text-2xs font-medium text-foreground"
           >
             <MoreHorizontal className="h-5 w-5" />
             {t("common.more")}
@@ -219,8 +219,8 @@ function ThreadRowImpl({
           touchAction: touch ? "pan-y" : undefined,
         }}
         className={cn(
-          "group relative flex h-full cursor-pointer items-center gap-3 border-b border-border/50 bg-background pl-3 pr-4 transition-colors",
-          active ? "bg-primary/5" : "hover:bg-muted/40",
+          "group relative flex h-full cursor-pointer items-center gap-3 border-b border-border/50 pl-3 pr-4 transition-colors",
+          active ? "bg-surface-3" : isUnread ? "bg-surface-2 hover:bg-surface-3" : "bg-background hover:bg-surface-2",
           focused && !active && "ring-1 ring-inset ring-primary/40",
           density === "comfortable"
             ? "py-2"
@@ -274,7 +274,7 @@ function ThreadRowImpl({
             <div className="flex items-center gap-2 text-sm">
               {thread.brand && (
                 <span
-                  className="flex-none rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                  className="flex-none rounded px-1.5 py-0.5 text-2xs font-semibold"
                   style={{ background: `${accent}22`, color: accent }}
                 >
                   {thread.brand.name}
@@ -316,7 +316,7 @@ function ThreadRowImpl({
                   {senderName(thread, t("inbox.row.unknown"))}
                 </span>
                 {thread.message_count > 1 && (
-                  <span className="rounded-sm bg-muted/60 px-1 text-[10px] text-muted-foreground">
+                  <span className="rounded-sm bg-muted/60 px-1 text-2xs text-muted-foreground">
                     {thread.message_count}
                   </span>
                 )}
@@ -337,7 +337,7 @@ function ThreadRowImpl({
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {thread.brand && (
                     <span
-                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide"
                       style={{ background: `${accent}22`, color: accent }}
                     >
                       <span
@@ -348,19 +348,19 @@ function ThreadRowImpl({
                     </span>
                   )}
                   {m?.ai_category && (
-                    <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
+                    <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-2xs font-medium text-foreground/80">
                       <Sparkles className="h-2.5 w-2.5 text-muted-foreground" />
                       {prettyCategory(m.ai_category)}
                     </span>
                   )}
                   {isUrgent && (
-                    <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                    <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide text-destructive">
                       <AlertTriangle className="h-2.5 w-2.5" />
                       {t("inbox.row.urgent")}
                     </span>
                   )}
                   {needsReply && (
-                    <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide text-primary">
                       <MessageSquareReply className="h-2.5 w-2.5" />
                       {t("inbox.row.reply")}
                     </span>
@@ -380,7 +380,7 @@ function ThreadRowImpl({
         <div className="z-10 flex flex-none flex-col items-end justify-center gap-0.5">
           <span
             className={cn(
-              "text-[11px]",
+              "text-2xs",
               isUnread
                 ? "font-medium text-foreground"
                 : "text-muted-foreground",

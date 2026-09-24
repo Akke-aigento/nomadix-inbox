@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { useT } from "@/i18n";
+import { TableSkeleton } from "@/components/settings/TableSkeleton";
 interface Address {
   id: string;
   brand_id: string;
@@ -271,7 +272,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
 
   return (
     <div className="space-y-3 rounded-md border border-border surface-2 p-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Label className="text-sm">{t("settings.addresses.title")}</Label>
           <p className="text-xs text-muted-foreground">
@@ -281,7 +282,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        <TableSkeleton rows={3} />
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t("settings.addresses.empty")}
@@ -316,12 +317,12 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
               </button>
               <span className="font-mono">{row.email_address}</span>
               {row.is_primary && !row.is_catch_all && (
-                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-2xs font-medium uppercase tracking-wide text-primary">
                   {t("settings.addresses.primary")}
                 </span>
               )}
               {row.label && (
-                <span className="rounded surface-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="rounded surface-3 px-1.5 py-0.5 text-2xs uppercase tracking-wide text-muted-foreground">
                   {row.label}
                 </span>
               )}
@@ -396,7 +397,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
 
       {/* Add / edit dialog */}
       <Dialog open={addOpen !== null} onOpenChange={(o) => !o && closeForm()}>
-        <DialogContent className="surface-1 max-w-md">
+        <DialogContent className="surface-1 max-h-[90dvh] max-w-md overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit" : "Add"}{" "}

@@ -115,7 +115,7 @@ export function FilterChips() {
           key={c.key}
           onClick={c.onRemove}
           className={cn(
-            "group inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] text-foreground/90 transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive",
+            "group inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-2xs text-foreground/90 transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive",
           )}
           title={t("inbox.chips.remove")}
         >
@@ -132,7 +132,7 @@ export function FilterChips() {
       {activeChipCount + (filters.search ? 1 : 0) >= 2 && (
         <button
           onClick={reset}
-          className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          className="ml-auto text-2xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
           {t("inbox.chips.clearAll")}
         </button>

@@ -16,6 +16,8 @@ export const settingsNl = {
   "settings.brands.reorder": "Sleep om de volgorde te wijzigen",
 
   // ── afzenders binnen een merk ───────────────────────────────────────
+  "settings.accounts.subtitle":
+    "Wie er namens dit merk mag versturen. Elke afzender heeft een eigen handtekening.",
   "settings.accounts.add": "Afzender toevoegen",
   "settings.accounts.empty": "Nog geen afzenders.",
   "settings.accounts.removeTitle": "Deze afzender verwijderen?",
@@ -229,6 +231,8 @@ export const settingsEn = {
   "settings.brands.deleted": "Brand deleted",
   "settings.brands.reorder": "Drag to reorder",
 
+  "settings.accounts.subtitle":
+    "Who can send mail on behalf of this brand. Each sender has their own signature.",
   "settings.accounts.add": "Add sender",
   "settings.accounts.empty": "No senders yet.",
   "settings.accounts.removeTitle": "Remove this sender?",

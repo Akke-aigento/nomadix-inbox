@@ -61,16 +61,16 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
     <div className="rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="flex h-5 items-center gap-1 rounded-full bg-primary/15 px-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+          <span className="flex h-5 items-center gap-1 rounded-full bg-primary/15 px-2 text-2xs font-semibold uppercase tracking-wider text-primary">
             <Sparkles className="h-3 w-3" />
             {t("inbox.aiDraft.badge")}
           </span>
           {isFailed && (
-            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-medium text-destructive">
+            <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-2xs font-medium text-destructive">
               {t("inbox.aiDraft.failed")}
             </span>
           )}
-          <span className="text-[10px] text-muted-foreground">{draft.model_used}</span>
+          <span className="text-2xs text-muted-foreground">{draft.model_used}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -130,7 +130,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
             dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(draft.draft_body_html) }}
           />
           {draft.reasoning && (
-            <div className="mt-1.5 text-[10px] italic text-muted-foreground">
+            <div className="mt-1.5 text-2xs italic text-muted-foreground">
               {draft.reasoning}
             </div>
           )}
