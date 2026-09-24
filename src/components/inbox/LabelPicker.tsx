@@ -13,6 +13,7 @@ import { addLabelToThreads, runAction, removeLabelFromThreads } from "@/lib/inbo
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 
 interface Props {
   threadIds: string[];
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenChange }: Props) {
+  const t = useT();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
@@ -75,14 +77,14 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
       .single();
     setCreating(false);
     if (error || !data) {
-      toast.error("Could not create label");
+      toast.error(t("inbox.labels.createFailed"));
       return;
     }
     qc.invalidateQueries({ queryKey: ["labels"] });
     setSearch("");
     await runAction(
       () => addLabelToThreads(threadIds, data.id, qc),
-      `Label "${name}" toegevoegd`,
+      t("inbox.labels.added", { name }),
     );
   };
 
@@ -97,7 +99,7 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
       </PopoverTrigger>
       <PopoverContent align={align} className="w-64 p-2">
         <Input
-          placeholder="Zoek of maak label…"
+          placeholder={t("inbox.labels.searchPlaceholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           autoFocus
@@ -112,7 +114,7 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
         <div className="mt-2 max-h-60 overflow-y-auto">
           {filtered.length === 0 && !search.trim() && (
             <div className="px-2 py-3 text-center text-xs text-muted-foreground">
-              Nog geen labels
+              {t("inbox.labels.none")}
             </div>
           )}
           {filtered.map((label) => {
@@ -144,7 +146,8 @@ export function LabelPicker({ threadIds, trigger, align = "end", open, onOpenCha
               className="mt-1 flex w-full items-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <Plus className="h-3 w-3" />
-              Maak label "<span className="font-medium text-foreground">{search.trim()}</span>"
+              {t("inbox.labels.createPrefix")} “
+              <span className="font-medium text-foreground">{search.trim()}</span>”
             </button>
           )}
         </div>

@@ -4,6 +4,7 @@ import { Plus, Trash2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n";
 
 interface Label {
   id: string;
@@ -12,6 +13,7 @@ interface Label {
 }
 
 export default function LabelsTab() {
+  const t = useT();
   const [labels, setLabels] = useState<Label[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -75,14 +77,14 @@ export default function LabelsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Labels</h2>
+          <h2 className="text-base font-semibold">{t("settings.labels.title")}</h2>
           <p className="text-xs text-muted-foreground">
-            Tags you can apply to threads later.
+            {t("settings.labels.subtitle")}
           </p>
         </div>
         {!adding && (
           <Button size="sm" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4" /> Add label
+            <Plus className="h-4 w-4" /> {t("settings.labels.add")}
           </Button>
         )}
       </div>
@@ -99,7 +101,7 @@ export default function LabelsTab() {
             <Input
               autoFocus
               value={newLabel.name}
-              placeholder="Label name"
+              placeholder={t("settings.labels.namePlaceholder")}
               onChange={(e) => setNewLabel((l) => ({ ...l, name: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && add()}
               className="h-8 flex-1"
@@ -114,9 +116,9 @@ export default function LabelsTab() {
         )}
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : labels.length === 0 && !adding ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No labels yet.</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.labels.empty")}</div>
         ) : (
           labels.map((label) => (
             <div
@@ -168,7 +170,7 @@ export default function LabelsTab() {
                       className="h-7 px-2 text-xs"
                       onClick={() => startEdit(label)}
                     >
-                      Edit
+                      {t("common.edit")}
                     </Button>
                     <Button
                       size="icon"

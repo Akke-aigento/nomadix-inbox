@@ -32,8 +32,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import BrandFormDialog, { type Brand } from "./BrandFormDialog";
+import { useT } from "@/i18n";
 
 export default function BrandsTab() {
+  const t = useT();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Brand | null>(null);
@@ -102,20 +104,20 @@ export default function BrandsTab() {
     }
     setBrands((bs) => bs.filter((b) => b.id !== deleting.id));
     setDeleting(null);
-    toast.success("Brand deleted");
+    toast.success(t("settings.brands.deleted"));
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Brands</h2>
+          <h2 className="text-base font-semibold">{t("settings.brands.title")}</h2>
           <p className="text-xs text-muted-foreground">
-            Drag to reorder. Each brand maps to an email address and signature.
+            {t("settings.brands.subtitle")}
           </p>
         </div>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add brand
+          <Plus className="h-4 w-4" /> {t("settings.brands.add")}
         </Button>
       </div>
 
@@ -123,16 +125,16 @@ export default function BrandsTab() {
         <div className="grid grid-cols-[32px_28px_minmax(0,1.4fr)_minmax(0,1.4fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
           <div></div>
-          <div>Name</div>
-          <div>Email</div>
-          <div>Active</div>
-          <div className="text-right">Actions</div>
+          <div>{t("settings.brands.name")}</div>
+          <div>{t("settings.brands.email")}</div>
+          <div>{t("settings.brands.active")}</div>
+          <div className="text-right">{t("settings.brands.actions")}</div>
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : brands.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No brands yet.</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.brands.empty")}</div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext
@@ -171,19 +173,18 @@ export default function BrandsTab() {
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this brand?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.brands.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleting?.name} will be removed. Threads previously linked to it will keep their
-              messages but lose the brand association. This cannot be undone.
+              {t("settings.brands.deleteBody", { name: deleting?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -203,6 +204,7 @@ function SortableRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: brand.id,
   });
@@ -221,7 +223,7 @@ function SortableRow({
       <button
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={t("settings.brands.reorder")}
         className="text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="h-4 w-4" />

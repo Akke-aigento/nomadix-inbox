@@ -20,12 +20,14 @@ import { Label } from "@/components/ui/label";
 import { useInboxFilters, type SortKind } from "@/hooks/useInboxFilters";
 import type { Density } from "./ThreadRow";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
+import type { MessageKey } from "@/i18n/nl";
 
-const SORT_LABELS: Record<SortKind, string> = {
-  newest: "Newest first",
-  oldest: "Oldest first",
-  unread: "Unread first",
-  "most-replies": "Most replies",
+const SORT_KEYS: Record<SortKind, MessageKey> = {
+  newest: "inbox.toolbar.sortNewest",
+  oldest: "inbox.toolbar.sortOldest",
+  unread: "inbox.toolbar.sortUnread",
+  "most-replies": "inbox.toolbar.sortMostReplies",
 };
 
 interface Props {
@@ -36,6 +38,7 @@ interface Props {
 }
 
 export function InboxToolbar({ density, setDensity, total, selectedCount }: Props) {
+  const t = useT();
   const { filters, update, activeChipCount } = useInboxFilters();
 
   const cycleDensity = () => {
@@ -49,11 +52,11 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
   return (
     <div className="flex h-9 items-center justify-between border-b border-border/60 px-3 text-xs">
       <div className="flex items-center gap-2 text-muted-foreground">
-        <span className="tabular-nums">
-          {total} {total === 1 ? "thread" : "threads"}
-        </span>
+        <span className="tabular-nums">{t("inbox.toolbar.threads", { count: total })}</span>
         {selectedCount > 0 && (
-          <span className="text-foreground/80">· {selectedCount} selected</span>
+          <span className="text-foreground/80">
+            · {t("inbox.toolbar.selected", { count: selectedCount })}
+          </span>
         )}
       </div>
 
@@ -65,7 +68,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
               variant="ghost"
               size="icon"
               className={cn("h-7 w-7", activeChipCount > 0 && "text-primary")}
-              aria-label="Filters"
+              aria-label={t("inbox.toolbar.filters")}
             >
               <FilterIcon className="h-3.5 w-3.5" />
             </Button>
@@ -74,7 +77,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
             <div className="space-y-3 text-sm">
               <div>
                 <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                  State
+                  {t("inbox.toolbar.state")}
                 </Label>
                 <div className="mt-1 grid grid-cols-3 gap-1">
                   {(["all", "unread", "read"] as const).map((s) => (
@@ -82,17 +85,21 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
                       key={s}
                       size="sm"
                       variant={filters.state === s ? "default" : "outline"}
-                      className="h-7 text-xs capitalize"
+                      className="h-7 text-xs"
                       onClick={() => update({ state: s })}
                     >
-                      {s}
+                      {s === "all"
+                        ? t("inbox.toolbar.stateAll")
+                        : s === "unread"
+                          ? t("inbox.toolbar.stateUnread")
+                          : t("inbox.toolbar.stateRead")}
                     </Button>
                   ))}
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="attach" className="text-xs font-normal">
-                  Has attachment
+                  {t("inbox.toolbar.hasAttachment")}
                 </Label>
                 <Switch
                   id="attach"
@@ -102,7 +109,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
               </div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="urgent" className="text-xs font-normal">
-                  Urgent only
+                  {t("inbox.toolbar.urgentOnly")}
                 </Label>
                 <Switch
                   id="urgent"
@@ -112,7 +119,7 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
               </div>
               <div>
                 <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                  Date range
+                  {t("inbox.toolbar.dateRange")}
                 </Label>
                 <div className="mt-1 grid grid-cols-3 gap-1">
                   {(["7d", "30d", "all"] as const).map((r) => (
@@ -123,7 +130,11 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
                       className="h-7 text-xs"
                       onClick={() => update({ dateRange: r })}
                     >
-                      {r === "7d" ? "7 days" : r === "30d" ? "30 days" : "All"}
+                      {r === "7d"
+                        ? t("inbox.toolbar.range7d")
+                        : r === "30d"
+                          ? t("inbox.toolbar.range30d")
+                          : t("inbox.toolbar.rangeAll")}
                     </Button>
                   ))}
                 </div>
@@ -135,22 +146,22 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
         {/* Sort */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Sort">
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={t("inbox.toolbar.sort")}>
               <ArrowDownNarrowWide className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider">
-              Sort by
+              {t("inbox.toolbar.sortBy")}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuRadioGroup
               value={filters.sort}
               onValueChange={(v) => update({ sort: v as SortKind })}
             >
-              {(Object.keys(SORT_LABELS) as SortKind[]).map((k) => (
+              {(Object.keys(SORT_KEYS) as SortKind[]).map((k) => (
                 <DropdownMenuRadioItem key={k} value={k} className="text-xs">
-                  {SORT_LABELS[k]}
+                  {t(SORT_KEYS[k])}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
@@ -163,8 +174,10 @@ export function InboxToolbar({ density, setDensity, total, selectedCount }: Prop
           size="icon"
           className="h-7 w-7"
           onClick={cycleDensity}
-          title={`Density: ${density} (⇧D)`}
-          aria-label="Toggle density"
+          title={t("inbox.toolbar.density", {
+            value: t(`prefs.density.${density}` as MessageKey),
+          })}
+          aria-label={t("inbox.toolbar.densityToggle")}
         >
           <DensityIcon className="h-3.5 w-3.5" />
         </Button>

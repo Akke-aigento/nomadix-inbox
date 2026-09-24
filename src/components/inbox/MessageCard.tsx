@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { format } from "date-fns";
+import { useI18n, useT } from "@/i18n";
+import { fmtDateTime } from "@/i18n/format";
 import { ChevronDown, ChevronRight, Reply, ReplyAll, Forward } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -47,12 +48,15 @@ interface Props {
 }
 
 export function MessageCard({ message, attachments, brandName, expanded, onToggle, isNewest, onCompose }: Props) {
+  const t = useT();
+  const { locale } = useI18n();
+
   const html = useMemo(() => {
     // Sanitize first, then fold: the <details> wrapper is added to clean HTML.
-    if (message.body_html) return foldQuotedHtml(sanitizeEmailHtml(message.body_html));
+    if (message.body_html) return foldQuotedHtml(sanitizeEmailHtml(message.body_html), t("inbox.message.showQuoted"));
     if (message.body_text) return `<pre class="whitespace-pre-wrap font-sans text-sm">${message.body_text.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}</pre>`;
     return "";
-  }, [message.body_html, message.body_text]);
+  }, [message.body_html, message.body_text, t]);
 
   // Outbound messages have no body_text: preview from the HTML instead.
   const previewLine = useMemo(
@@ -81,18 +85,25 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
             )}
             {message.is_outbound && (
               <span className="flex-none rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                Verzonden
+                {t("inbox.message.sent")}
               </span>
             )}
           </div>
           {expanded ? (
             <div className="mt-1 text-xs text-muted-foreground">
-              to {Array.isArray(message.to_addresses) && message.to_addresses[0]?.address}
+              {t("inbox.message.to")}{" "}
+              {Array.isArray(message.to_addresses) && message.to_addresses[0]?.address}
               {message.matched_email_address && (
                 <>
                   {" "}
-                  · received at <span className="font-medium text-foreground/80">{message.matched_email_address}</span>
-                  {brandName && <> via {brandName}</>}
+                  · {t("inbox.message.receivedAt")}{" "}
+                  <span className="font-medium text-foreground/80">{message.matched_email_address}</span>
+                  {brandName && (
+                    <>
+                      {" "}
+                      {t("inbox.message.via")} {brandName}
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -101,7 +112,7 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
           )}
         </div>
         <div className="flex flex-none flex-col items-end gap-1">
-          <span className="text-xs text-muted-foreground">{format(date, "MMM d, HH:mm")}</span>
+          <span className="text-xs text-muted-foreground">{fmtDateTime(date, locale)}</span>
           {expanded ? (
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           ) : (
@@ -120,13 +131,13 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
           {onCompose && (
             <div className="mt-4 flex gap-2 border-t border-border/60 pt-3">
               <Button size="sm" variant="outline" onClick={() => onCompose("reply", message)}>
-                <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply
+                <Reply className="mr-1.5 h-3.5 w-3.5" /> {t("inbox.message.reply")}
               </Button>
               <Button size="sm" variant="outline" onClick={() => onCompose("replyAll", message)}>
-                <ReplyAll className="mr-1.5 h-3.5 w-3.5" /> Reply All
+                <ReplyAll className="mr-1.5 h-3.5 w-3.5" /> {t("inbox.message.replyAll")}
               </Button>
               <Button size="sm" variant="outline" onClick={() => onCompose("forward", message)}>
-                <Forward className="mr-1.5 h-3.5 w-3.5" /> Forward
+                <Forward className="mr-1.5 h-3.5 w-3.5" /> {t("inbox.message.forward")}
               </Button>
             </div>
           )}

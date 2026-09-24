@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 
+import { useT } from "@/i18n";
 export interface RoutingRule {
   id: string;
   name: string;
@@ -84,6 +85,7 @@ const empty = {
 };
 
 export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: Props) {
+  const t = useT();
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [brands, setBrands] = useState<BrandOpt[]>([]);
@@ -148,7 +150,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
 
   const submit = async () => {
     if (!form.name.trim()) {
-      toast.error("Name is required");
+      toast.error(t("rules.form.error.name"));
       return;
     }
     setBusy(true);
@@ -171,11 +173,11 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
       if (rule) {
         const { error } = await supabase.from("routing_rules").update(payload).eq("id", rule.id);
         if (error) throw error;
-        toast.success("Rule updated");
+        toast.success(t("rules.toast.updated"));
       } else {
         const { error } = await supabase.from("routing_rules").insert(payload);
         if (error) throw error;
-        toast.success("Rule added");
+        toast.success(t("rules.toast.added"));
       }
       onSaved();
     } catch (err) {
@@ -201,16 +203,16 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="name">Rule name</Label>
+            <Label htmlFor="name">{t("rules.form.name")}</Label>
             <Input
               id="name"
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              placeholder="Stripe notificaties"
+              placeholder={t("rules.form.name.placeholder")}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="priority">Priority</Label>
+            <Label htmlFor="priority">{t("rules.form.priority")}</Label>
             <Input
               id="priority"
               type="number"
@@ -221,7 +223,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
           <div className="flex items-end">
             <div className="flex w-full items-center justify-between rounded-md border border-border surface-2 px-3 py-2">
               <Label htmlFor="is_active" className="cursor-pointer">
-                Active
+                {t("rules.form.active")}
               </Label>
               <Switch
                 id="is_active"
@@ -233,11 +235,11 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
         </div>
 
         <Separator className="my-2" />
-        <h3 className="text-sm font-semibold">Match conditions (all must be true)</h3>
+        <h3 className="text-sm font-semibold">{t("rules.form.conditions")}</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="match_from_contains">From contains</Label>
+            <Label htmlFor="match_from_contains">{t("rules.form.from")}</Label>
             <Input
               id="match_from_contains"
               value={form.match_from_contains}
@@ -246,7 +248,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="match_subject_contains">Subject contains</Label>
+            <Label htmlFor="match_subject_contains">{t("rules.form.subject")}</Label>
             <Input
               id="match_subject_contains"
               value={form.match_subject_contains}
@@ -255,7 +257,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="match_to_contains">To contains</Label>
+            <Label htmlFor="match_to_contains">{t("rules.form.to")}</Label>
             <Input
               id="match_to_contains"
               value={form.match_to_contains}
@@ -264,7 +266,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="match_has_header">Has header</Label>
+            <Label htmlFor="match_has_header">{t("rules.form.header")}</Label>
             <Input
               id="match_has_header"
               value={form.match_has_header}
@@ -273,16 +275,16 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Label>Brand</Label>
+            <Label>{t("rules.form.brand")}</Label>
             <Select
               value={form.match_brand_id || NONE}
               onValueChange={(v) => set("match_brand_id", v === NONE ? "" : v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Any brand" />
+                <SelectValue placeholder={t("rules.form.brand.any")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Any brand</SelectItem>
+                <SelectItem value={NONE}>{t("rules.form.brand.any")}</SelectItem>
                 {brands.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
@@ -294,11 +296,11 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
         </div>
 
         <Separator className="my-2" />
-        <h3 className="text-sm font-semibold">Actions</h3>
+        <h3 className="text-sm font-semibold">{t("rules.form.actions")}</h3>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Add category</Label>
+            <Label>{t("rules.form.addCategory")}</Label>
             <Select
               value={form.action_add_category_id || NONE}
               onValueChange={(v) => set("action_add_category_id", v === NONE ? "" : v)}
@@ -307,7 +309,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
                 <SelectValue placeholder="None" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
+                <SelectItem value={NONE}>{t("rules.form.none")}</SelectItem>
                 {filteredCategories.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.emoji} {c.name}
@@ -320,7 +322,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Add label</Label>
+            <Label>{t("rules.form.addLabel")}</Label>
             <Select
               value={form.action_add_label_id || NONE}
               onValueChange={(v) => set("action_add_label_id", v === NONE ? "" : v)}
@@ -329,7 +331,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
                 <SelectValue placeholder="None" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
+                <SelectItem value={NONE}>{t("rules.form.none")}</SelectItem>
                 {labels.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.name}
@@ -339,29 +341,29 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Set urgency</Label>
+            <Label>{t("rules.form.urgency")}</Label>
             <Select
               value={form.action_set_urgency || NONE}
               onValueChange={(v) => set("action_set_urgency", v === NONE ? "" : v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Don't change" />
+                <SelectValue placeholder={t("rules.form.urgency.keep")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NONE}>Don't change</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value={NONE}>{t("rules.form.urgency.keep")}</SelectItem>
+                <SelectItem value="low">{t("rules.form.urgency.low")}</SelectItem>
+                <SelectItem value="normal">{t("rules.form.urgency.normal")}</SelectItem>
+                <SelectItem value="high">{t("rules.form.urgency.high")}</SelectItem>
+                <SelectItem value="urgent">{t("rules.form.urgency.urgent")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Flags</Label>
+            <Label>{t("rules.form.extras")}</Label>
             <div className="space-y-2">
               <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-1.5">
                 <Label htmlFor="action_mark_read" className="cursor-pointer text-sm">
-                  Mark as read
+                  {t("rules.form.markRead")}
                 </Label>
                 <Switch
                   id="action_mark_read"
@@ -371,7 +373,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
               </div>
               <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-1.5">
                 <Label htmlFor="action_archive" className="cursor-pointer text-sm">
-                  Auto-archive
+                  {t("rules.form.archive")}
                 </Label>
                 <Switch
                   id="action_archive"
@@ -385,7 +387,7 @@ export default function RoutingRuleFormDialog({ open, rule, onClose, onSaved }: 
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={busy}>
             {busy ? "Saving…" : rule ? "Save changes" : "Add rule"}

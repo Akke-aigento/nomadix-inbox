@@ -21,8 +21,10 @@ import { LabelPicker } from "@/components/inbox/LabelPicker";
 import { Clock, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDensity } from "@/lib/density";
+import { useT } from "@/i18n";
 
 export default function InboxPage() {
+  const t = useT();
   const navigate = useNavigate();
   const params = useParams<{ threadId?: string }>();
   const qc = useQueryClient();
@@ -109,11 +111,14 @@ export default function InboxPage() {
     const ids = Array.from(selectedIds);
     if (await runAction(() => action(ids), success?.(ids.length))) setSelectedIds(new Set());
   };
-  const bulkArchive = () => bulk((ids) => archiveThreads(ids, qc), (n) => `Archived ${n}`);
+  const bulkArchive = () =>
+    bulk((ids) => archiveThreads(ids, qc), (n) => t("inbox.bulk.archived", { count: n }));
   // deleteThreads shows its own toast with an undo action.
   const bulkDelete = () => bulk((ids) => deleteThreads(ids, qc));
-  const bulkMarkRead = () => bulk((ids) => setThreadsRead(ids, true, qc), (n) => `Marked ${n} read`);
-  const bulkMute = () => bulk((ids) => setThreadsMuted(ids, true, qc), (n) => `Muted ${n}`);
+  const bulkMarkRead = () =>
+    bulk((ids) => setThreadsRead(ids, true, qc), (n) => t("inbox.bulk.markedRead", { count: n }));
+  const bulkMute = () =>
+    bulk((ids) => setThreadsMuted(ids, true, qc), (n) => t("inbox.bulk.muted", { count: n }));
 
   const showList = !isMobile || !selectedId;
   const showDetail = !isMobile || !!selectedId;
@@ -236,6 +241,7 @@ function BulkBar({
   onMute: () => void;
   onClear: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -244,17 +250,19 @@ function BulkBar({
       )}
     >
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-popover px-2 py-1.5 shadow-lg">
-        <span className="px-2 text-xs font-medium">{count} selected</span>
+        <span className="px-2 text-xs font-medium">
+          {t("inbox.toolbar.selected", { count })}
+        </span>
         <div className="mx-1 h-4 w-px bg-border" />
         <Button variant="ghost" size="sm" className="h-7" onClick={onArchive}>
-          <Archive className="mr-1 h-3.5 w-3.5" /> Archive
+          <Archive className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.archive")}
         </Button>
         <SnoozePicker
           threadIds={selectedIds}
           onSnoozed={onClear}
           trigger={
             <Button variant="ghost" size="sm" className="h-7">
-              <Clock className="mr-1 h-3.5 w-3.5" /> Snooze
+              <Clock className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.snooze")}
             </Button>
           }
         />
@@ -262,20 +270,20 @@ function BulkBar({
           threadIds={selectedIds}
           trigger={
             <Button variant="ghost" size="sm" className="h-7">
-              <Tag className="mr-1 h-3.5 w-3.5" /> Label
+              <Tag className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.label")}
             </Button>
           }
         />
         <Button variant="ghost" size="sm" className="h-7" onClick={onMute}>
-          <BellOff className="mr-1 h-3.5 w-3.5" /> Mute
+          <BellOff className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.mute")}
         </Button>
         <Button variant="ghost" size="sm" className="h-7" onClick={onMarkRead}>
-          <MailOpen className="mr-1 h-3.5 w-3.5" /> Mark read
+          <MailOpen className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.markRead")}
         </Button>
         <Button variant="ghost" size="sm" className="h-7" onClick={onDelete}>
-          <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+          <Trash2 className="mr-1 h-3.5 w-3.5" /> {t("inbox.bulk.delete")}
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClear} aria-label="Clear selection">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClear} aria-label={t("inbox.bulk.clearSelection")}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>

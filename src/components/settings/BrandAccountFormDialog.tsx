@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { sanitizeSignature } from "@/lib/sanitize";
+import { useT } from "@/i18n";
 
 export interface BrandAccount {
   id: string;
@@ -56,6 +57,7 @@ export default function BrandAccountFormDialog({
   onClose,
   onSaved,
 }: Props) {
+  const t = useT();
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -84,7 +86,7 @@ export default function BrandAccountFormDialog({
     setUploading(true);
     try {
       const { data: { user }, error: userErr } = await supabase.auth.getUser();
-      if (userErr || !user) throw userErr ?? new Error("Not authenticated");
+      if (userErr || !user) throw userErr ?? new Error(t("settings.account.errAuth"));
       const ext = file.name.split(".").pop() || "png";
       const path = `${user.id}/${brandId}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage
@@ -93,9 +95,9 @@ export default function BrandAccountFormDialog({
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("brand-account-avatars").getPublicUrl(path);
       set("avatar_url", data.publicUrl);
-      toast.success("Avatar uploaded");
+      toast.success(t("settings.account.avatarUploaded"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      toast.error(err instanceof Error ? err.message : t("settings.account.uploadFailed"));
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -104,11 +106,11 @@ export default function BrandAccountFormDialog({
 
   const submit = async () => {
     if (!form.display_name.trim()) {
-      toast.error("Display name is required");
+      toast.error(t("settings.account.errName"));
       return;
     }
     if (!form.signature_html.trim()) {
-      toast.error("Signature is required");
+      toast.error(t("settings.account.errSignature"));
       return;
     }
     setBusy(true);
@@ -139,15 +141,15 @@ export default function BrandAccountFormDialog({
           .update(payload)
           .eq("id", account.id);
         if (error) throw error;
-        toast.success("Account updated");
+        toast.success(t("settings.account.updated"));
       } else {
         const { error } = await supabase.from("brand_accounts").insert(payload);
         if (error) throw error;
-        toast.success("Account added");
+        toast.success(t("settings.account.added"));
       }
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(err instanceof Error ? err.message : t("settings.account.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -166,13 +168,13 @@ export default function BrandAccountFormDialog({
         <DialogHeader>
           <DialogTitle>{account ? "Edit account" : "Add account"}</DialogTitle>
           <DialogDescription>
-            A person who sends mail under this brand with their own signature.
+            {t("settings.account.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="display_name">Display name</Label>
+            <Label htmlFor="display_name">{t("settings.account.displayName")}</Label>
             <Input
               id="display_name"
               value={form.display_name}
@@ -181,7 +183,7 @@ export default function BrandAccountFormDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="role_title">Role / title</Label>
+            <Label htmlFor="role_title">{t("settings.account.role")}</Label>
             <Input
               id="role_title"
               value={form.role_title}
@@ -190,17 +192,17 @@ export default function BrandAccountFormDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email_alias">Email alias (optional)</Label>
+            <Label htmlFor="email_alias">{t("settings.account.alias")}</Label>
             <Input
               id="email_alias"
               type="email"
               value={form.email_alias}
               onChange={(e) => set("email_alias", e.target.value)}
-              placeholder="Leeg = gebruikt brand email_address"
+              placeholder={t("settings.account.aliasHelp")}
             />
           </div>
           <div className="space-y-2">
-            <Label>Avatar</Label>
+            <Label>{t("settings.account.avatar")}</Label>
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 {form.avatar_url ? <AvatarImage src={form.avatar_url} alt={form.display_name} /> : null}
@@ -222,7 +224,7 @@ export default function BrandAccountFormDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="signature_html">Signature (HTML)</Label>
+          <Label htmlFor="signature_html">{t("settings.account.signature")}</Label>
           <div className="grid gap-3 lg:grid-cols-2">
             <Textarea
               id="signature_html"
@@ -234,7 +236,7 @@ export default function BrandAccountFormDialog({
             />
             <div className="rounded-md border border-border surface-2 p-3">
               <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                Preview
+                {t("settings.account.preview")}
               </div>
               {form.signature_html ? (
                 <div
@@ -242,7 +244,7 @@ export default function BrandAccountFormDialog({
                   dangerouslySetInnerHTML={{ __html: sanitizeSignature(form.signature_html) }}
                 />
               ) : (
-                <div className="text-sm text-muted-foreground">No signature yet.</div>
+                <div className="text-sm text-muted-foreground">{t("settings.account.noSignature")}</div>
               )}
             </div>
           </div>
@@ -251,10 +253,10 @@ export default function BrandAccountFormDialog({
         <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2">
           <div>
             <Label htmlFor="is_default" className="cursor-pointer">
-              Default account for this brand
+              {t("settings.account.isDefault")}
             </Label>
             <p className="text-xs text-muted-foreground">
-              Selected automatically when composing under this brand.
+              {t("settings.account.isDefaultHelp")}
             </p>
           </div>
           <Switch
@@ -266,7 +268,7 @@ export default function BrandAccountFormDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={busy}>
             {busy ? "Saving…" : account ? "Save changes" : "Add account"}

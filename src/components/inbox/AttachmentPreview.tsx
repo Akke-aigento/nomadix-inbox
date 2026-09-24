@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import { useT } from "@/i18n";
 
 // Configure PDF.js worker via CDN to avoid Vite worker bundling pain.
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -66,6 +67,7 @@ export function AttachmentList({ attachments }: { attachments: AttachmentRow[] }
 }
 
 function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; onClose: () => void }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
 
@@ -113,8 +115,16 @@ function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; 
             <Document
               file={url}
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-              loading={<div className="py-12 text-center text-sm text-muted-foreground">Loading PDF…</div>}
-              error={<div className="py-12 text-center text-sm text-destructive">Failed to load PDF.</div>}
+              loading={
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  {t("inbox.attachment.loadingPdf")}
+                </div>
+              }
+              error={
+                <div className="py-12 text-center text-sm text-destructive">
+                  {t("inbox.attachment.pdfFailed")}
+                </div>
+              }
             >
               {Array.from({ length: numPages || 0 }).map((_, i) => (
                 <Page key={i} pageNumber={i + 1} width={760} className="mb-3 shadow" />
@@ -122,7 +132,7 @@ function AttachmentPreviewDialog({ att, onClose }: { att: AttachmentRow | null; 
             </Document>
           ) : (
             <div className="py-12 text-center text-sm text-muted-foreground">
-              No preview available. Use the download button.
+              {t("inbox.attachment.noPreview")}
             </div>
           )}
         </div>

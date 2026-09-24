@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loadLocale, translate } from "@/i18n/core";
 
 const HEARTBEAT_FRESH_MS = 60_000;
 
@@ -37,7 +38,7 @@ export async function ensureNoActiveSync(
   const heartbeatAge = Date.now() - hb;
 
   if (hb > 0 && heartbeatAge < HEARTBEAT_FRESH_MS) {
-    return { ok: false, reason: "Sync al bezig — wacht tot deze klaar is" };
+    return { ok: false, reason: translate(loadLocale(), "inbox.sync.busy") };
   }
 
   // Stale row → mark as error so we can start a fresh run.

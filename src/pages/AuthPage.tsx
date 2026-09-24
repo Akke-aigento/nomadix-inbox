@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useEffect } from "react";
+import { useT } from "@/i18n";
 
 export default function AuthPage() {
+  const t = useT();
   const navigate = useNavigate();
   const { session, loading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -28,7 +30,7 @@ export default function AuthPage() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast.success("Signed in");
+        toast.success(t("auth.toast.signedIn"));
         navigate("/inbox", { replace: true });
       } else {
         const { error } = await supabase.auth.signUp({
@@ -37,11 +39,11 @@ export default function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/inbox` },
         });
         if (error) throw error;
-        toast.success("Account created — you're signed in");
+        toast.success(t("auth.toast.signedUp"));
         navigate("/inbox", { replace: true });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Authentication failed");
+      toast.error(err instanceof Error ? err.message : t("auth.error.failed"));
     } finally {
       setBusy(false);
     }
@@ -52,15 +54,15 @@ export default function AuthPage() {
       <Card className="w-full max-w-sm surface-1 border-border p-8">
         <div className="mb-6">
           <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Nomadix</div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Unified Inbox</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{t("auth.title")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "signin" ? "Sign in to continue." : "Create your account."}
+            {mode === "signin" ? t("auth.signin.lead") : t("auth.signup.lead")}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("auth.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -71,7 +73,7 @@ export default function AuthPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t("auth.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -83,7 +85,11 @@ export default function AuthPage() {
             />
           </div>
           <Button type="submit" disabled={busy} className="w-full">
-            {busy ? "Working…" : mode === "signin" ? "Sign in" : "Create account"}
+            {busy
+              ? t("auth.busy")
+              : mode === "signin"
+                ? t("auth.submit.signin")
+                : t("auth.submit.signup")}
           </Button>
         </form>
 
@@ -92,7 +98,7 @@ export default function AuthPage() {
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="mt-6 w-full text-center text-xs text-muted-foreground hover:text-foreground"
         >
-          {mode === "signin" ? "First time? Create your account" : "Have an account? Sign in"}
+          {mode === "signin" ? t("auth.switch.toSignup") : t("auth.switch.toSignin")}
         </button>
       </Card>
     </div>

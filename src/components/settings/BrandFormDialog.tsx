@@ -20,6 +20,7 @@ import BrandAISettingsTab from "./BrandAISettingsTab";
 import BrandCategoriesTab from "./BrandCategoriesTab";
 import BrandEmailAddressesManager from "./BrandEmailAddressesManager";
 import { sanitizeSignature } from "@/lib/sanitize";
+import { useT } from "@/i18n";
 
 export interface Brand {
   id: string;
@@ -66,6 +67,7 @@ export default function BrandFormDialog({
   onClose,
   onSaved,
 }: Props) {
+  const t = useT();
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -106,7 +108,7 @@ export default function BrandFormDialog({
       if (upErr) throw upErr;
       const { data } = supabase.storage.from("brand-logos").getPublicUrl(path);
       set("logo_url", data.publicUrl);
-      toast.success("Logo uploaded");
+      toast.success(t("settings.brand.logoUploaded"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -117,11 +119,11 @@ export default function BrandFormDialog({
 
   const submitGeneralAndSignature = async () => {
     if (!form.slug || !form.name || !form.display_name) {
-      toast.error("Slug, name and display name are required");
+      toast.error(t("settings.brand.errRequired"));
       return;
     }
     if (!brand && !form.email_address) {
-      toast.error("A primary email address is required for new brands");
+      toast.error(t("settings.brand.errPrimaryEmail"));
       return;
     }
     setBusy(true);
@@ -140,7 +142,7 @@ export default function BrandFormDialog({
           })
           .eq("id", brand.id);
         if (error) throw error;
-        toast.success("Brand updated");
+        toast.success(t("settings.brand.updated"));
       } else {
         const maxOrder = existingSortOrders.length ? Math.max(...existingSortOrders) : 0;
         const { data: { user } } = await supabase.auth.getUser();
@@ -170,7 +172,7 @@ export default function BrandFormDialog({
             sort_order: 0,
           });
         }
-        toast.success("Brand added");
+        toast.success(t("settings.brand.added"));
       }
       onSaved();
     } catch (err) {
@@ -186,29 +188,29 @@ export default function BrandFormDialog({
         <DialogHeader>
           <DialogTitle>{brand ? `Edit ${brand.name}` : "Add brand"}</DialogTitle>
           <DialogDescription>
-            Configure brand identity, signature, accounts, and AI behaviour.
+            {t("settings.brand.description")}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="surface-2">
-            <TabsTrigger value="general">Algemeen</TabsTrigger>
-            <TabsTrigger value="signature">Signature</TabsTrigger>
+            <TabsTrigger value="general">{t("settings.brand.tabGeneral")}</TabsTrigger>
+            <TabsTrigger value="signature">{t("settings.brand.tabSignature")}</TabsTrigger>
             <TabsTrigger value="accounts" disabled={!brand}>
-              Accounts
+              {t("settings.brand.tabAccounts")}
             </TabsTrigger>
             <TabsTrigger value="ai" disabled={!brand}>
-              AI
+              {t("settings.brand.tabAi")}
             </TabsTrigger>
             <TabsTrigger value="categories" disabled={!brand}>
-              Categorieën
+              {t("settings.brand.tabCategories")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="mt-4 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="slug">Slug</Label>
+                <Label htmlFor="slug">{t("settings.brand.slug")}</Label>
                 <Input
                   id="slug"
                   value={form.slug}
@@ -217,7 +219,7 @@ export default function BrandFormDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">{t("settings.brand.name")}</Label>
                 <Input
                   id="name"
                   value={form.name}
@@ -227,7 +229,7 @@ export default function BrandFormDialog({
               </div>
               {!brand && (
                 <div className="space-y-2">
-                  <Label htmlFor="email_address">Primary email address</Label>
+                  <Label htmlFor="email_address">{t("settings.brand.primaryEmail")}</Label>
                   <Input
                     id="email_address"
                     type="email"
@@ -236,12 +238,12 @@ export default function BrandFormDialog({
                     placeholder="info@sellqo.app"
                   />
                   <p className="text-xs text-muted-foreground">
-                    You can add more addresses + catch-all after saving.
+                    {t("settings.brand.primaryEmailHelp")}
                   </p>
                 </div>
               )}
               <div className="space-y-2">
-                <Label htmlFor="display_name">Display name (From:)</Label>
+                <Label htmlFor="display_name">{t("settings.brand.displayName")}</Label>
                 <Input
                   id="display_name"
                   value={form.display_name}
@@ -250,7 +252,7 @@ export default function BrandFormDialog({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="color_primary">Brand color</Label>
+                <Label htmlFor="color_primary">{t("settings.brand.color")}</Label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
@@ -267,7 +269,7 @@ export default function BrandFormDialog({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Logo</Label>
+                <Label>{t("settings.brand.logo")}</Label>
                 <div className="flex items-center gap-3">
                   {form.logo_url ? (
                     <img
@@ -298,10 +300,10 @@ export default function BrandFormDialog({
 
           <TabsContent value="signature" className="mt-4 space-y-3">
             <div>
-              <Label htmlFor="default_signature_html">Default brand signature (HTML)</Label>
+              <Label htmlFor="default_signature_html">{t("settings.brand.signature")}</Label>
               <p className="mt-1 text-xs text-muted-foreground">
                 Used when no specific account is selected. Per-person signatures live under{" "}
-                <span className="font-medium">Accounts</span>.
+                <span className="font-medium">{t("settings.brand.tabAccounts")}</span>.
               </p>
             </div>
             <div className="grid gap-3 lg:grid-cols-2">
@@ -315,7 +317,7 @@ export default function BrandFormDialog({
               />
               <div className="rounded-md border border-border surface-2 p-3">
                 <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                  Live preview
+                  {t("settings.brand.livePreview")}
                 </div>
                 {form.default_signature_html ? (
                   <div
@@ -323,7 +325,7 @@ export default function BrandFormDialog({
                     dangerouslySetInnerHTML={{ __html: sanitizeSignature(form.default_signature_html) }}
                   />
                 ) : (
-                  <div className="text-sm text-muted-foreground">No signature yet.</div>
+                  <div className="text-sm text-muted-foreground">{t("settings.brand.noSignature")}</div>
                 )}
               </div>
             </div>
@@ -333,7 +335,7 @@ export default function BrandFormDialog({
             {brand ? (
               <BrandAccountsTab brandId={brand.id} brandFallbackName={brand.display_name} />
             ) : (
-              <p className="text-sm text-muted-foreground">Save the brand first to add accounts.</p>
+              <p className="text-sm text-muted-foreground">{t("settings.brand.saveFirst")}</p>
             )}
           </TabsContent>
 
@@ -349,17 +351,21 @@ export default function BrandFormDialog({
         {(tab === "general" || tab === "signature") && (
           <DialogFooter>
             <Button variant="ghost" onClick={onClose} disabled={busy}>
-              Close
+              {t("settings.brand.close")}
             </Button>
             <Button onClick={submitGeneralAndSignature} disabled={busy}>
-              {busy ? "Saving…" : brand ? "Save changes" : "Add brand"}
+              {busy
+                ? t("settings.account.saving")
+                : brand
+                  ? t("settings.account.save")
+                  : t("settings.brands.add")}
             </Button>
           </DialogFooter>
         )}
         {(tab === "accounts" || tab === "ai" || tab === "categories") && (
           <DialogFooter>
             <Button variant="ghost" onClick={onClose}>
-              Done
+              {t("settings.brand.done")}
             </Button>
           </DialogFooter>
         )}

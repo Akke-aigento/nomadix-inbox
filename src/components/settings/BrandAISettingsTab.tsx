@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import type { Brand } from "./BrandFormDialog";
+import { useT } from "@/i18n";
 
 interface Props {
   brand: Brand;
@@ -52,6 +53,7 @@ const VOICE_PLACEHOLDER = `Beschrijf hoe deze brand communiceert. Bijvoorbeeld:
 "SellQo is een multi-tenant e-commerce platform. Communicatie is technisch-onderbouwd maar toegankelijk. We tutoyeren klanten (je/jij). Antwoorden zijn concreet en bevatten waar mogelijk een volgende stap. Geen jargon zonder uitleg."`;
 
 export default function BrandAISettingsTab({ brand }: Props) {
+  const t = useT();
   const [enabled, setEnabled] = useState<boolean>(brand.ai_auto_draft_enabled ?? false);
   const [mode, setMode] = useState<string>(brand.ai_draft_mode ?? "off");
   const [tone, setTone] = useState<string>(brand.ai_draft_tone ?? "professional");
@@ -88,7 +90,7 @@ export default function BrandAISettingsTab({ brand }: Props) {
 
   const save = async () => {
     if (overLimit) {
-      toast.error("Brand voice exceeds 500 words");
+      toast.error(t("settings.ai.voiceTooLong"));
       return;
     }
     setBusy(true);
@@ -108,22 +110,22 @@ export default function BrandAISettingsTab({ brand }: Props) {
       toast.error(error.message);
       return;
     }
-    toast.success("AI settings saved");
+    toast.success(t("settings.ai.saved"));
   };
 
   return (
     <div className="space-y-6">
       <section className="space-y-4 rounded-md border border-border surface-1 p-4">
         <div>
-          <h3 className="text-sm font-semibold">AI Draft Replies</h3>
+          <h3 className="text-sm font-semibold">{t("settings.ai.title")}</h3>
           <p className="text-xs text-muted-foreground">
-            Generate concept replies automatically for inbound messages.
+            {t("settings.ai.subtitle")}
           </p>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2">
           <Label htmlFor="ai_auto_draft_enabled" className="cursor-pointer">
-            Automatische concept-antwoorden genereren
+            {t("settings.ai.enable")}
           </Label>
           <Switch
             id="ai_auto_draft_enabled"
@@ -135,7 +137,7 @@ export default function BrandAISettingsTab({ brand }: Props) {
         {enabled && (
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2 sm:col-span-3">
-              <Label>Wanneer?</Label>
+              <Label>{t("settings.ai.when")}</Label>
               <Select value={mode} onValueChange={setMode}>
                 <SelectTrigger>
                   <SelectValue />
@@ -152,11 +154,11 @@ export default function BrandAISettingsTab({ brand }: Props) {
 
             {mode === "labeled" && (
               <div className="space-y-2 sm:col-span-3">
-                <Label>Trigger labels</Label>
+                <Label>{t("settings.ai.triggerLabels")}</Label>
                 <div className="flex flex-wrap gap-2 rounded-md border border-border surface-2 p-2">
                   {labels.length === 0 ? (
                     <span className="text-xs text-muted-foreground">
-                      No labels yet. Create labels in the Labels tab.
+                      {t("settings.ai.noLabels")}
                     </span>
                   ) : (
                     labels.map((l) => {
@@ -186,7 +188,7 @@ export default function BrandAISettingsTab({ brand }: Props) {
             )}
 
             <div className="space-y-2">
-              <Label>Toon</Label>
+              <Label>{t("settings.ai.tone")}</Label>
               <Select value={tone} onValueChange={setTone}>
                 <SelectTrigger>
                   <SelectValue />
@@ -202,7 +204,7 @@ export default function BrandAISettingsTab({ brand }: Props) {
             </div>
 
             <div className="space-y-2">
-              <Label>Taal</Label>
+              <Label>{t("settings.ai.language")}</Label>
               <Select value={language} onValueChange={setLanguage}>
                 <SelectTrigger>
                   <SelectValue />
@@ -223,9 +225,9 @@ export default function BrandAISettingsTab({ brand }: Props) {
       <section className="space-y-3 rounded-md border border-border surface-1 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold">Brand Voice</h3>
+            <h3 className="text-sm font-semibold">{t("settings.ai.voice")}</h3>
             <p className="text-xs text-muted-foreground">
-              Injected into the AI system prompt when drafting replies.
+              {t("settings.ai.voiceHelp")}
             </p>
           </div>
           <span
@@ -244,7 +246,7 @@ export default function BrandAISettingsTab({ brand }: Props) {
 
       <div className="flex justify-end">
         <Button onClick={save} disabled={busy}>
-          {busy ? "Saving…" : "Save AI settings"}
+          {busy ? t("settings.ai.saving") : t("settings.ai.save")}
         </Button>
       </div>
     </div>

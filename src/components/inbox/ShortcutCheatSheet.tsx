@@ -1,49 +1,68 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useT } from "@/i18n";
+import type { MessageKey } from "@/i18n/nl";
 
-const SECTIONS = [
+// Toetsen zoals ze echt gebonden zijn (useInboxKeyboard + ThreadDetail).
+// Het oude overzicht klopte niet: het noemde "R" voor allen-antwoorden (is ⇧A),
+// "s" voor snooze (is b) en een verdwenen "(3C)".
+const SECTIONS: { titleKey: MessageKey; items: [string, MessageKey][] }[] = [
   {
-    title: "Navigation",
+    titleKey: "inbox.shortcuts.navigation",
     items: [
-      ["j / k", "Next / previous thread"],
-      ["o or Enter", "Open focused thread"],
-      ["[", "Toggle sidebar"],
-      ["shift + d", "Cycle density"],
-      ["/ or ⌘K", "Focus search"],
-      ["?", "Show this cheat sheet"],
+      ["j / k", "inbox.shortcuts.nextPrev"],
+      ["o / ↩", "inbox.shortcuts.open"],
+      ["[", "inbox.shortcuts.toggleSidebar"],
+      ["⇧D", "inbox.shortcuts.cycleDensity"],
+      ["/", "inbox.shortcuts.focusSearch"],
+      ["⌘K", "inbox.shortcuts.palette"],
+      ["g + i / r / z / m / a", "inbox.shortcuts.views"],
+      ["g + 1-9", "inbox.shortcuts.brands"],
+      ["?", "inbox.shortcuts.showSheet"],
     ],
   },
   {
-    title: "Thread actions",
+    titleKey: "inbox.shortcuts.threadActions",
     items: [
-      ["e", "Archive"],
-      ["y", "Archive + go to next"],
-      ["u", "Toggle read / unread"],
-      ["# or ⌘⌫", "Delete"],
-      ["x", "Toggle select on focused"],
-      ["r / R / f", "Reply / Reply all / Forward (3C)"],
-      ["s", "Snooze"],
+      ["e", "inbox.shortcuts.archive"],
+      ["y", "inbox.shortcuts.archiveNext"],
+      ["u", "inbox.shortcuts.toggleRead"],
+      ["# / ⌘⌫", "inbox.shortcuts.delete"],
+      ["x", "inbox.shortcuts.toggleSelect"],
+      ["r / ⇧A / f", "inbox.shortcuts.replyForward"],
+      ["b", "inbox.shortcuts.snooze"],
+      ["v", "inbox.shortcuts.labels"],
+      ["m", "inbox.shortcuts.mute"],
+      ["⌘↩", "inbox.shortcuts.send"],
     ],
   },
 ];
 
-export function ShortcutCheatSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (b: boolean) => void }) {
+export function ShortcutCheatSheet({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (b: boolean) => void;
+}) {
+  const t = useT();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogTitle>{t("inbox.shortcuts.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-6 sm:grid-cols-2">
           {SECTIONS.map((section) => (
-            <div key={section.title}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {section.title}
+            <div key={section.titleKey}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t(section.titleKey)}
               </h3>
               <ul className="space-y-1.5">
-                {section.items.map(([keys, desc]) => (
+                {section.items.map(([keys, descKey]) => (
                   <li key={keys} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-foreground/80">{desc}</span>
-                    <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[11px]">
+                    <span className="text-muted-foreground">{t(descKey)}</span>
+                    <kbd className="flex-none rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-2xs">
                       {keys}
                     </kbd>
                   </li>

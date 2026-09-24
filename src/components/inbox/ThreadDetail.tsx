@@ -28,6 +28,8 @@ import {
   runAction,
 } from "@/lib/inbox-actions";
 import { pickReplyParent } from "@/lib/reply-target";
+import { useI18n, useT } from "@/i18n";
+import { fmtDateTime, fmtDistance } from "@/i18n/format";
 import { isSequencePending } from "@/lib/key-sequence";
 import { newestFirst, nextExpansion, toggleExpanded, type ExpansionState } from "@/lib/thread-view";
 import { ReplyComposer, type ComposeMode } from "./ReplyComposer";
@@ -35,7 +37,6 @@ import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
 import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
-import { format, formatDistanceToNow } from "date-fns";
 
 interface Props {
   threadId: string | null;
@@ -53,6 +54,8 @@ interface ComposerState {
 }
 
 export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) {
+  const t = useT();
+  const { locale } = useI18n();
   const qc = useQueryClient();
   useSnoozeWakeupTick();
 
@@ -229,10 +232,10 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     const muted = !!data?.thread?.is_muted;
     const ok = await runAction(
       () => setThreadsMuted([threadId], !muted, qc),
-      muted ? "Mute opgeheven" : "Thread gemute",
+      t(muted ? "inbox.thread.unmutedToast" : "inbox.thread.mutedToast"),
     );
     if (ok && !muted) onAdvance?.();
-  }, [data?.thread, threadId, qc, onAdvance]);
+  }, [data?.thread, threadId, qc, onAdvance, t]);
 
   // Command palette "Reply to current thread".
   useEffect(() => {
@@ -306,15 +309,17 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   if (!threadId) return <NoThreadSelected />;
   if (isLoading || !data?.thread) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading…</div>
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        {t("common.loading")}
+      </div>
     );
   }
 
   const handleArchive = async () => {
-    if (await runAction(() => archiveThreads([threadId], qc), "Archived")) onAdvance?.();
+    if (await runAction(() => archiveThreads([threadId], qc), t("inbox.thread.archived"))) onAdvance?.();
   };
   const handleUnarchive = async () => {
-    await runAction(() => unarchiveThreads([threadId], qc), "Unarchived");
+    await runAction(() => unarchiveThreads([threadId], qc), t("inbox.thread.unarchived"));
   };
   const handleDelete = async () => {
     // deleteThreads shows its own toast with an undo action.
@@ -324,11 +329,11 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     const anyUnread = data.messages.some((m) => !m.is_read);
     await runAction(
       () => setThreadsRead([threadId], anyUnread, qc),
-      anyUnread ? "Marked read" : "Marked unread",
+      t(anyUnread ? "inbox.thread.markedRead" : "inbox.thread.markedUnread"),
     );
   };
   const handleUnsnooze = async () => {
-    await runAction(() => unsnoozeThreads([threadId], qc), "Snooze opgeheven");
+    await runAction(() => unsnoozeThreads([threadId], qc), t("inbox.thread.unsnoozed"));
   };
 
   const brandId = (data.thread as any).brand_id as string | null;
@@ -359,7 +364,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           className="flex h-10 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 text-xs font-medium text-muted-foreground transition hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
-          Back to inbox
+          {t("inbox.thread.backToInbox")}
         </button>
       )}
       <header className="flex h-14 flex-none items-center gap-2 border-b border-border px-4">
@@ -370,10 +375,10 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <div className="truncate text-sm font-semibold">{data.thread.subject || "(no subject)"}</div>
+            <div className="truncate text-sm font-semibold">{data.thread.subject || t("inbox.row.noSubject")}</div>
             {isMuted && (
               <span className="flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                <BellOff className="h-2.5 w-2.5" /> Muted
+                <BellOff className="h-2.5 w-2.5" /> {t("inbox.thread.muted")}
               </span>
             )}
           </div>
@@ -401,14 +406,14 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         </div>
         {replyParent && !composer && (
           <Button variant="outline" size="sm" className="h-8" onClick={() => openComposer("reply", replyParent)}>
-            <Reply className="mr-1.5 h-3.5 w-3.5" /> Reply
+            <Reply className="mr-1.5 h-3.5 w-3.5" /> {t("inbox.thread.reply")}
           </Button>
         )}
         <SnoozePicker
           threadIds={[threadId]}
           onSnoozed={onAdvance}
           trigger={
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Snooze (b)">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title={t("inbox.thread.snooze")}>
               <Clock className="h-4 w-4" />
             </Button>
           }
@@ -418,7 +423,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           open={labelOpen}
           onOpenChange={setLabelOpen}
           trigger={
-            <Button variant="ghost" size="icon" className="h-8 w-8" title="Labels (v)">
+            <Button variant="ghost" size="icon" className="h-8 w-8" title={t("inbox.thread.labels")}>
               <Tag className="h-4 w-4" />
             </Button>
           }
@@ -428,23 +433,23 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           size="icon"
           className="h-8 w-8"
           onClick={toggleMute}
-          title={isMuted ? "Mute opheffen (m)" : "Mute (m)"}
+          title={isMuted ? t("inbox.thread.unmute") : t("inbox.thread.mute")}
         >
           {isMuted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
         </Button>
         {isArchived ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUnarchive} title="Unarchive">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleUnarchive} title={t("inbox.thread.unarchive")}>
             <ArchiveRestore className="h-4 w-4" />
           </Button>
         ) : (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleArchive} title="Archive (e)">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleArchive} title={t("inbox.thread.archive")}>
             <Archive className="h-4 w-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleToggleRead} title="Toggle read (u)">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleToggleRead} title={t("inbox.thread.toggleRead")}>
           {data.messages.some((m) => !m.is_read) ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDelete} title="Delete (#)">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDelete} title={t("inbox.thread.delete")}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </header>
@@ -477,14 +482,14 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-2 text-xs">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
-            Gesnoozed tot{" "}
+            {t("inbox.thread.snoozedUntil")}{" "}
             <span className="font-medium text-foreground">
-              {format(new Date(snoozedUntil!), "EEE d MMM, HH:mm")}
+              {fmtDateTime(snoozedUntil!, locale)}
             </span>{" "}
-            ({formatDistanceToNow(new Date(snoozedUntil!), { addSuffix: true })})
+            ({fmtDistance(snoozedUntil!, locale)})
           </div>
           <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleUnsnooze}>
-            Snooze opheffen
+            {t("inbox.thread.unsnooze")}
           </Button>
         </div>
       )}
@@ -523,28 +528,28 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
             className="mb-3 flex items-center gap-2 rounded-md border border-dashed border-primary/50 bg-primary/5 px-3 py-2 text-xs text-primary transition hover:bg-primary/10"
           >
             <Reply className="h-3 w-3" />
-            Resume draft · {resumable.draft.subject || "(no subject)"}
+            {t("inbox.thread.resumeDraft")} · {resumable.draft.subject || t("inbox.row.noSubject")}
           </button>
         )}
         {aiSummary ? (
           <div className="mb-3 rounded-lg border border-border/60 bg-muted/20 p-3">
             <div className="mb-1.5 flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                AI summary
+                {t("inbox.thread.aiSummary")}
               </span>
               {latestAnalyzed?.urgency === "high" && (
                 <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
-                  Urgent
+                  {t("inbox.row.urgent")}
                 </span>
               )}
               {latestAnalyzed?.needs_reply && (
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Needs reply
+                  {t("inbox.thread.needsReply")}
                 </span>
               )}
               {latestAnalyzed?.requires_action && !latestAnalyzed?.needs_reply && (
                 <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warning">
-                  Action required
+                  {t("inbox.thread.actionRequired")}
                 </span>
               )}
               {latestAnalyzed?.sender_type &&
@@ -559,7 +564,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           </div>
         ) : (
           <div className="mb-3 rounded-lg border border-dashed border-border/50 p-3 text-xs text-muted-foreground">
-            AI summary pending — analysis runs automatically after sync.
+            {t("inbox.thread.aiSummaryPending")}
           </div>
         )}
         <div className="space-y-3">

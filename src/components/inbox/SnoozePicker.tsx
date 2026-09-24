@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
+import { useI18n, useT } from "@/i18n";
+import { fmtDateTime } from "@/i18n/format";
 import { snoozeThreads, runAction, SNOOZE_PRESETS } from "@/lib/inbox-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ interface Props {
 
 export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: Props) {
   const qc = useQueryClient();
+  const t = useT();
+  const { locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [customDate, setCustomDate] = useState("");
   const [customTime, setCustomTime] = useState("09:00");
@@ -30,7 +33,7 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
     if (!threadIds.length) return;
     const ok = await runAction(
       () => snoozeThreads(threadIds, until, qc),
-      `Gesnoozed tot ${format(until, "d MMM HH:mm")} (${label})`,
+      t("inbox.snooze.doneWithPreset", { when: fmtDateTime(until, locale), label }),
     );
     if (!ok) return;
     setOpen(false);
@@ -39,17 +42,17 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
 
   const handleCustom = async () => {
     if (!customDate) {
-      toast.error("Kies een datum");
+      toast.error(t("inbox.snooze.pickDate"));
       return;
     }
     const dt = new Date(`${customDate}T${customTime || "09:00"}:00`);
     if (Number.isNaN(dt.getTime()) || dt.getTime() <= Date.now()) {
-      toast.error("Kies een tijd in de toekomst");
+      toast.error(t("inbox.snooze.pickFuture"));
       return;
     }
     const ok = await runAction(
       () => snoozeThreads(threadIds, dt, qc),
-      `Gesnoozed tot ${format(dt, "d MMM HH:mm")}`,
+      t("inbox.snooze.done", { when: fmtDateTime(dt, locale) }),
     );
     if (!ok) return;
     setOpen(false);
@@ -60,14 +63,14 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         {trigger ?? (
-          <Button variant="ghost" size="icon" className="h-8 w-8" title="Snooze (b)">
+          <Button variant="ghost" size="icon" className="h-8 w-8" title={t("inbox.thread.snooze")}>
             <Clock className="h-4 w-4" />
           </Button>
         )}
       </PopoverTrigger>
       <PopoverContent align={align} className="w-72 p-2">
         <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Snooze tot
+          {t("inbox.snooze.title")}
         </div>
         <div className="space-y-0.5">
           {SNOOZE_PRESETS.map((p) => {
@@ -75,15 +78,15 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
             return (
               <button
                 key={p.key}
-                onClick={() => handlePreset(dt, p.label)}
+                onClick={() => handlePreset(dt, t(p.labelKey))}
                 className={cn(
                   "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-left",
                   "hover:bg-muted",
                 )}
               >
-                <span>{p.label}</span>
+                <span>{t(p.labelKey)}</span>
                 <span className="text-xs text-muted-foreground">
-                  {format(dt, "EEE d MMM, HH:mm")}
+                  {fmtDateTime(dt, locale)}
                 </span>
               </button>
             );
@@ -91,7 +94,7 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
         </div>
         <div className="mt-2 border-t border-border pt-2">
           <div className="mb-1.5 flex items-center gap-1.5 px-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <CalendarIcon className="h-3 w-3" /> Custom
+            <CalendarIcon className="h-3 w-3" /> {t("inbox.snooze.custom")}
           </div>
           <div className="flex gap-1.5 px-1.5">
             <Input
@@ -109,7 +112,7 @@ export function SnoozePicker({ threadIds, trigger, align = "end", onSnoozed }: P
           </div>
           <div className="mt-2 flex justify-end px-1.5">
             <Button size="sm" className="h-7" onClick={handleCustom}>
-              Snooze
+              {t("inbox.snooze.confirm")}
             </Button>
           </div>
         </div>

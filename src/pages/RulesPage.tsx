@@ -35,8 +35,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import RoutingRuleFormDialog, { type RoutingRule } from "@/components/rules/RoutingRuleFormDialog";
 import RuleTestDialog from "@/components/rules/RuleTestDialog";
+import { useI18n, useT } from "@/i18n";
+import { fmtDate } from "@/i18n/format";
 
 export default function RulesPage() {
+  const t = useT();
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -105,38 +108,35 @@ export default function RulesPage() {
     }
     setRules((rs) => rs.filter((r) => r.id !== deleting.id));
     setDeleting(null);
-    toast.success("Rule removed");
+    toast.success(t("rules.toast.removed"));
   };
 
   return (
     <AppShell>
       <div className="mb-6 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Routing rules</h1>
-          <p className="text-sm text-muted-foreground">
-            Auto-tag, archive or prioritise inbound mail before it reaches your inbox. Lower
-            priority runs first.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("rules.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("rules.subtitle")}</p>
         </div>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add rule
+          <Plus className="h-4 w-4" /> {t("rules.add")}
         </Button>
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
         <div className="grid grid-cols-[28px_minmax(0,1.6fr)_60px_minmax(0,1.6fr)_120px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
-          <div>Name</div>
-          <div>Prio</div>
-          <div>Actions</div>
-          <div>Stats</div>
-          <div className="text-right">Edit</div>
+          <div>{t("rules.col.name")}</div>
+          <div>{t("rules.col.priority")}</div>
+          <div>{t("rules.col.actions")}</div>
+          <div>{t("rules.col.stats")}</div>
+          <div className="text-right">{t("rules.col.edit")}</div>
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : rules.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No rules yet.</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("rules.empty")}</div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
@@ -174,18 +174,18 @@ export default function RulesPage() {
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this rule?</AlertDialogTitle>
+            <AlertDialogTitle>{t("rules.delete.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              "{deleting?.name}" will be permanently removed.
+              {t("rules.delete.body", { name: deleting?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -207,6 +207,8 @@ function SortableRuleRow({
   onTest: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
+  const { locale } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: rule.id,
   });
@@ -233,7 +235,7 @@ function SortableRuleRow({
       <button
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={t("settings.brands.reorder")}
         className="text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="h-4 w-4" />
@@ -257,7 +259,7 @@ function SortableRuleRow({
       <div className="font-mono text-xs">{rule.priority}</div>
       <div className="flex flex-wrap gap-1">
         {actionBadges.length === 0 ? (
-          <span className="text-xs text-muted-foreground">no actions</span>
+          <span className="text-xs text-muted-foreground">{t("rules.badge.none")}</span>
         ) : (
           actionBadges.map((b) => (
             <Badge key={b.key} variant="secondary" className="text-[10px]">
@@ -270,12 +272,12 @@ function SortableRuleRow({
         {rule.times_matched ?? 0}× matched
         {rule.last_matched_at && (
           <div className="truncate">
-            {new Date(rule.last_matched_at).toLocaleDateString()}
+            {fmtDate(rule.last_matched_at, locale)}
           </div>
         )}
       </div>
       <div className="flex items-center justify-end gap-1">
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onTest} title="Dry-run">
+        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onTest} title={t("rules.action.test")}>
           <PlayCircle className="h-3.5 w-3.5" />
         </Button>
         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit}>

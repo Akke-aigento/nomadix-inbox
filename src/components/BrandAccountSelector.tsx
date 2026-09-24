@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useT } from "@/i18n";
 
 export interface BrandAccountOption {
   id: string;
@@ -41,6 +42,7 @@ export default function BrandAccountSelector({
   placeholder = "Select account",
   className,
 }: Props) {
+  const t = useT();
   const [accounts, setAccounts] = useState<BrandAccountOption[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -75,7 +77,7 @@ export default function BrandAccountSelector({
   return (
     <Select value={value ?? undefined} onValueChange={handleChange} disabled={!brandId || loading}>
       <SelectTrigger className={className}>
-        <SelectValue placeholder={loading ? "Loading…" : placeholder} />
+        <SelectValue placeholder={loading ? t("common.loading") : placeholder} />
       </SelectTrigger>
       <SelectContent>
         {accounts.map((acc) => {

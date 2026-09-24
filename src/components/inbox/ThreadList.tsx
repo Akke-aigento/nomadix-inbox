@@ -2,6 +2,8 @@ import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Menu } from "lucide-react";
 import { useBrandsQuery, type ThreadRow } from "@/hooks/useThreadsQuery";
+import { useT } from "@/i18n";
+import { viewDef } from "@/lib/views";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,31 +59,15 @@ export function ThreadList({
   const items = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
 
+  const t = useT();
   const { data: brands = [] } = useBrandsQuery();
   const headerLabel = useMemo(() => {
     if (filters.brands.length === 1) {
       const slug = filters.brands[0];
       return brands.find((b) => b.slug === slug)?.name ?? slug;
     }
-    switch (filters.view) {
-      case "inbox":
-        return "Inbox";
-      case "needs-reply":
-        return "Needs Reply";
-      case "snoozed":
-        return "Snoozed";
-      case "sent":
-        return "Sent";
-      case "drafts":
-        return "Drafts";
-      case "archive":
-        return "Archive";
-      case "all":
-        return "All Mail";
-      default:
-        return "Inbox";
-    }
-  }, [filters, brands]);
+    return viewDef(filters.view) ? t(viewDef(filters.view)!.labelKey) : t("views.inbox");
+  }, [filters, brands, t]);
 
   return (
     <div className="flex h-full flex-col bg-background">
@@ -93,7 +79,7 @@ export function ThreadList({
             size="icon"
             className="h-8 w-8 lg:hidden"
             onClick={onOpenSidebar}
-            aria-label="Open menu"
+            aria-label={t("inbox.list.openMenu")}
           >
             <Menu className="h-4 w-4" />
           </Button>
@@ -104,7 +90,7 @@ export function ThreadList({
             data-inbox-search
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
-            placeholder="Search mail…   ( / )"
+            placeholder={t("inbox.list.searchPlaceholder")}
             className="h-8 border-0 bg-transparent px-0 text-sm focus-visible:ring-0"
           />
         </div>

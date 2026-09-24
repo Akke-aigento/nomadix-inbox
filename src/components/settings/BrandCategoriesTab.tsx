@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import CategoryFormDialog, { type BrandCategory } from "./CategoryFormDialog";
+import { useT } from "@/i18n";
 
 interface Props {
   brandId: string;
@@ -49,6 +50,7 @@ const UNIVERSAL_DEFAULTS: Array<Omit<BrandCategory, "id" | "brand_id">> = [
 ];
 
 export default function BrandCategoriesTab({ brandId }: Props) {
+  const t = useT();
   const [items, setItems] = useState<BrandCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BrandCategory | null>(null);
@@ -117,7 +119,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
     }
     setItems((cs) => cs.filter((c) => c.id !== deleting.id));
     setDeleting(null);
-    toast.success("Category removed");
+    toast.success(t("settings.categories.removed"));
   };
 
   const handleReset = async () => {
@@ -136,7 +138,7 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       toast.error(insErr.message);
       return;
     }
-    toast.success("Categories reset to universal defaults");
+    toast.success(t("settings.categories.resetDone"));
     load();
   };
 
@@ -144,14 +146,14 @@ export default function BrandCategoriesTab({ brandId }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          Categories the AI can pick when classifying inbound mail. Drag to reorder.
+          {t("settings.categories.subtitle")}
         </p>
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => setResetting(true)}>
-            <RotateCcw className="h-4 w-4" /> Reset to defaults
+            <RotateCcw className="h-4 w-4" /> {t("settings.categories.reset")}
           </Button>
           <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Add category
+            <Plus className="h-4 w-4" /> {t("settings.categories.add")}
           </Button>
         </div>
       </div>
@@ -160,17 +162,17 @@ export default function BrandCategoriesTab({ brandId }: Props) {
         <div className="grid grid-cols-[28px_36px_minmax(0,1.2fr)_minmax(0,1.6fr)_28px_88px_72px] items-center gap-3 border-b border-border px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
           <div></div>
           <div></div>
-          <div>Name</div>
-          <div>Description</div>
+          <div>{t("settings.brands.name")}</div>
+          <div>{t("settings.categories.description")}</div>
           <div></div>
           <div>AI</div>
-          <div className="text-right">Actions</div>
+          <div className="text-right">{t("settings.brands.actions")}</div>
         </div>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : items.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No categories yet.</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.categories.empty")}</div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
@@ -207,18 +209,18 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this category?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.categories.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting?.emoji} {deleting?.name} — existing message-tags will also be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -227,19 +229,19 @@ export default function BrandCategoriesTab({ brandId }: Props) {
       <AlertDialog open={resetting} onOpenChange={setResetting}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset categories to defaults?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.categories.resetTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               All current categories for this brand will be deleted and replaced with the universal
               set (8 categories). Tagged messages lose their categorisation. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleReset}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Reset
+              {t("settings.categories.reset")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -259,6 +261,7 @@ function SortableCategoryRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id,
   });
@@ -277,7 +280,7 @@ function SortableCategoryRow({
       <button
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={t("settings.brands.reorder")}
         className="text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="h-4 w-4" />

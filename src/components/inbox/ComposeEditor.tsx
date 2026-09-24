@@ -5,11 +5,13 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { useEffect, useRef } from "react";
 import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Quote, Strikethrough } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 
 interface Props {
   initialHtml: string;
   /** `userEdit` is false for programmatic updates (tiptap v3 emits onUpdate on setContent). */
   onChange: (html: string, meta: { userEdit: boolean }) => void;
+  /** Standaard: t("inbox.editor.placeholder") */
   placeholder?: string;
   minHeight?: number;
   /** Put the caret at the start when the editor mounts (composer opened). */
@@ -21,11 +23,12 @@ interface Props {
 export function ComposeEditor({
   initialHtml,
   onChange,
-  placeholder = "Write your reply…",
+  placeholder,
   minHeight = 200,
   autoFocus = false,
   onSubmit,
 }: Props) {
+  const t = useT();
   const onSubmitRef = useRef(onSubmit);
   onSubmitRef.current = onSubmit;
 
@@ -42,7 +45,7 @@ export function ComposeEditor({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
       }),
-      Placeholder.configure({ placeholder }),
+      Placeholder.configure({ placeholder: placeholder ?? t("inbox.editor.placeholder") }),
     ],
     content: initialHtml,
     editorProps: {
@@ -109,7 +112,7 @@ export function ComposeEditor({
 
   const handleLink = () => {
     const previous = editor.getAttributes("link").href ?? "";
-    const url = window.prompt("URL", previous);
+    const url = window.prompt(t("inbox.editor.linkPrompt"), previous);
     if (url === null) return;
     if (url === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -121,27 +124,27 @@ export function ComposeEditor({
   return (
     <div className="rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
-        <ToolbarBtn title="Bold (⌘B)" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
+        <ToolbarBtn title={t("inbox.editor.bold")} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
           <Bold className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Italic (⌘I)" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}>
+        <ToolbarBtn title={t("inbox.editor.italic")} onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}>
           <Italic className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Strikethrough" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}>
+        <ToolbarBtn title={t("inbox.editor.strike")} onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}>
           <Strikethrough className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolbarBtn title="Bulleted list" onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}>
+        <ToolbarBtn title={t("inbox.editor.bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}>
           <List className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Numbered list" onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}>
+        <ToolbarBtn title={t("inbox.editor.orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}>
           <ListOrdered className="h-3.5 w-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn title="Quote" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")}>
+        <ToolbarBtn title={t("inbox.editor.quote")} onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")}>
           <Quote className="h-3.5 w-3.5" />
         </ToolbarBtn>
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolbarBtn title="Add link" onClick={handleLink} active={editor.isActive("link")}>
+        <ToolbarBtn title={t("inbox.editor.link")} onClick={handleLink} active={editor.isActive("link")}>
           <LinkIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
       </div>

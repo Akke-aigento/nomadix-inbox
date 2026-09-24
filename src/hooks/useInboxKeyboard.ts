@@ -5,6 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { archiveThreads, deleteThreads, runAction, setThreadsRead } from "@/lib/inbox-actions";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { toast } from "sonner";
+import { loadLocale, translate } from "@/i18n/core";
+import type { MessageKey } from "@/i18n/nl";
+
+// Sneltoetsen leven buiten de render: haal de taal uit de opslag.
+const tr = (key: MessageKey, vars?: Record<string, string | number>) =>
+  translate(loadLocale(), key, vars);
 import type { Density } from "@/components/inbox/ThreadRow";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { clearSequence, isSequencePending, startSequence } from "@/lib/key-sequence";
@@ -127,7 +133,7 @@ export function useInboxKeyboard(args: Args) {
             update({ brands: [brand.slug], view: "inbox", categories: [] });
             if (window.location.pathname !== "/inbox") navigate("/inbox");
           } else {
-            toast.info(`No brand at position ${n}`);
+            toast.info(tr("inbox.keys.noBrandAt", { n }));
           }
           return;
         }
@@ -195,7 +201,7 @@ export function useInboxKeyboard(args: Args) {
       const makeUnread = !t || (t.unread_count || 0) === 0;
       await runAction(
         () => setThreadsRead(ids, !makeUnread, qc),
-        makeUnread ? "Marked unread" : "Marked read",
+        tr(makeUnread ? "inbox.thread.markedUnread" : "inbox.thread.markedRead"),
       );
     }),
     opts,
@@ -290,5 +296,5 @@ export function useInboxKeyboard(args: Args) {
   // Reply / forward / snooze / label / mute are handled in ThreadDetail
   // (because they need parentMessage / picker UI). Keep these placeholders
   // out of the global hook to avoid double-handling.
-  useHotkeys("c", guard(() => toast.info("Compose — coming soon")), opts);
+  useHotkeys("c", guard(() => toast.info(tr("inbox.keys.composeSoon"))), opts);
 }

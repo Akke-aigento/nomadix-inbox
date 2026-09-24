@@ -14,6 +14,7 @@ import { ComposeEditor } from "./ComposeEditor";
 import { RecipientInput } from "./RecipientInput";
 import { sanitizeSignature } from "@/lib/sanitize";
 import { addressesToList, primaryReplyTarget } from "@/lib/reply-target";
+import { useT } from "@/i18n";
 import { toast } from "sonner";
 import type { MessageRecord } from "./MessageCard";
 
@@ -52,6 +53,10 @@ interface Props {
 }
 
 
+// Let op: de teksten hieronder gaan de e-mail in en volgen dus NIET de
+// UI-taal. "Re:"/"Fwd:" zijn RFC-conventies, de attributieregel hoort bij de
+// correspondentie, en "Forwarded message" dient ook als anker waarop de
+// signature-swap het gebruikersdeel afknipt (zie onAccountChange).
 function buildSubject(mode: ComposeMode, original: string | null): string {
   const base = (original || "").trim();
   const cleaned = base.replace(/^(re|fwd?|aw|antw|tr|fw|wg)\s*:\s*/gi, "").trim();
@@ -79,6 +84,7 @@ export function ReplyComposer({
   initialDraft = null,
   aiSeed = null,
 }: Props) {
+  const t = useT();
   const qc = useQueryClient();
 
   // Load brand_accounts for this brand
@@ -307,7 +313,7 @@ export function ReplyComposer({
       const { error } = await supabase.from("drafts").delete().eq("id", draftIdRef.current);
       if (error) {
         setDiscarding(false);
-        toast.error("Concept kon niet verwijderd worden");
+        toast.error(t("inbox.composer.draftDeleteFailed"));
         return;
       }
       draftIdRef.current = null;
@@ -321,15 +327,15 @@ export function ReplyComposer({
 
   const handleSend = async () => {
     if (!brandId || !accountId || !fromEmail) {
-      toast.error("Missing brand or sender configuration");
+      toast.error(t("inbox.composer.errMissingConfig"));
       return;
     }
     if (!to.length) {
-      toast.error("Add at least one recipient");
+      toast.error(t("inbox.composer.errNoRecipient"));
       return;
     }
     if (!subject.trim()) {
-      toast.error("Subject required");
+      toast.error(t("inbox.composer.errNoSubject"));
       return;
     }
     setSending(true);
@@ -358,10 +364,10 @@ export function ReplyComposer({
     });
     setSending(false);
     if (error || (data as any)?.error) {
-      toast.error((data as any)?.error || error?.message || "Send failed");
+      toast.error((data as any)?.error || error?.message || t("inbox.composer.sendFailed"));
       return;
     }
-    toast.success("Message sent");
+    toast.success(t("inbox.composer.sent"));
     const sentId = (data as { message_id?: string } | null)?.message_id ?? null;
     const sentAccount = accounts.find((a) => a.id === accountId);
     const sentMessage: MessageRecord = {
@@ -397,18 +403,18 @@ export function ReplyComposer({
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2 text-xs">
           <span className="font-medium">
-            {mode === "reply" && "Reply"}
-            {mode === "replyAll" && "Reply all"}
-            {mode === "forward" && "Forward"}
+            {mode === "reply" && t("inbox.composer.reply")}
+            {mode === "replyAll" && t("inbox.composer.replyAll")}
+            {mode === "forward" && t("inbox.composer.forward")}
           </span>
           {saveStatus === "saving" && (
             <span className="flex items-center gap-1 text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" /> Saving
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("inbox.composer.saving")}
             </span>
           )}
           {saveStatus === "saved" && (
             <span className="flex items-center gap-1 text-muted-foreground">
-              <Save className="h-3 w-3" /> Saved
+              <Save className="h-3 w-3" /> {t("inbox.composer.saved")}
             </span>
           )}
         </div>
@@ -417,17 +423,19 @@ export function ReplyComposer({
           size="icon"
           className="h-6 w-6"
           onClick={handleClose}
-          title="Sluiten (concept blijft bewaard)"
+          title={t("inbox.composer.close")}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">From</span>
+        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">
+          {t("inbox.composer.from")}
+        </span>
         <Select value={accountId} onValueChange={onAccountChange}>
           <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-2 text-xs hover:bg-muted">
-            <SelectValue placeholder="Select sender" />
+            <SelectValue placeholder={t("inbox.composer.selectSender")} />
           </SelectTrigger>
           <SelectContent>
             {accounts.map((a) => (
@@ -455,17 +463,17 @@ export function ReplyComposer({
       </div>
 
       <RecipientInput
-        label="To"
+        label={t("inbox.composer.to")}
         values={to}
         onChange={(next) => {
           markDirty();
           setTo(next);
         }}
-        placeholder="recipient@example.com"
+        placeholder={t("inbox.composer.recipientPlaceholder")}
       />
       {showCc ? (
         <RecipientInput
-          label="Cc"
+          label={t("inbox.composer.cc")}
           values={cc}
           onChange={(next) => {
             markDirty();
@@ -475,7 +483,7 @@ export function ReplyComposer({
       ) : null}
       {showBcc ? (
         <RecipientInput
-          label="Bcc"
+          label={t("inbox.composer.bcc")}
           values={bcc}
           onChange={(next) => {
             markDirty();
@@ -487,19 +495,21 @@ export function ReplyComposer({
         <div className="flex justify-end gap-3 border-b border-border px-3 py-1 text-[11px]">
           {!showCc && (
             <button onClick={() => setShowCc(true)} className="text-muted-foreground hover:text-foreground">
-              Add Cc
+              {t("inbox.composer.addCc")}
             </button>
           )}
           {!showBcc && (
             <button onClick={() => setShowBcc(true)} className="text-muted-foreground hover:text-foreground">
-              Add Bcc
+              {t("inbox.composer.addBcc")}
             </button>
           )}
         </div>
       )}
 
       <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
-        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">Subject</span>
+        <span className="w-12 flex-none text-xs font-medium text-muted-foreground">
+          {t("inbox.composer.subject")}
+        </span>
         <input
           value={subject}
           onChange={(e) => {
@@ -507,7 +517,7 @@ export function ReplyComposer({
             setSubject(e.target.value);
           }}
           className="flex-1 bg-transparent py-1 text-sm focus:outline-none"
-          placeholder="Subject"
+          placeholder={t("inbox.composer.subject")}
         />
       </div>
 
@@ -527,15 +537,15 @@ export function ReplyComposer({
 
       <div className="flex items-center justify-between border-t border-border px-3 py-2">
         <div className="text-[11px] text-muted-foreground">
-          ⌘↩ to send
+          {t("inbox.composer.sendHint")}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={handleDiscard} disabled={discarding || sending}>
-            Discard
+            {t("inbox.composer.discard")}
           </Button>
           <Button size="sm" onClick={handleSend} disabled={sending}>
             {sending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
-            Send
+            {t("inbox.composer.send")}
           </Button>
         </div>
       </div>

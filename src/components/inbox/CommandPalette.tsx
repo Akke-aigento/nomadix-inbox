@@ -125,27 +125,27 @@ export function CommandPalette({
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Type a command, brand, category, or thread…"
+        placeholder={t("inbox.palette.placeholder")}
         value={search}
         onValueChange={setSearch}
       />
       <CommandList className="max-h-[420px]">
-        <CommandEmpty>No matches found.</CommandEmpty>
+        <CommandEmpty>{t("inbox.palette.empty")}</CommandEmpty>
 
         {targetIds.length > 0 && (
           <>
-            <CommandGroup heading={`Actions (${targetIds.length} selected)`}>
+            <CommandGroup heading={t("inbox.palette.actions", { count: targetIds.length })}>
               <CommandItem
                 onSelect={async () => {
                   close();
                   const ok = await runAction(
                     () => archiveThreads(targetIds, qc),
-                    `Archived ${targetIds.length}`,
+                    t("inbox.bulk.archived", { count: targetIds.length }),
                   );
                   if (ok && selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                 }}
               >
-                <Archive className="mr-2 h-4 w-4" /> Archive
+                <Archive className="mr-2 h-4 w-4" /> {t("inbox.palette.archive")}
                 <span className="ml-auto text-[10px] text-muted-foreground">e</span>
               </CommandItem>
               <CommandItem
@@ -153,11 +153,11 @@ export function CommandPalette({
                   close();
                   await runAction(
                     () => setThreadsRead(targetIds, true, qc),
-                    `Marked ${targetIds.length} read`,
+                    t("inbox.bulk.markedRead", { count: targetIds.length }),
                   );
                 }}
               >
-                <MailOpen className="mr-2 h-4 w-4" /> Mark read
+                <MailOpen className="mr-2 h-4 w-4" /> {t("inbox.palette.markRead")}
                 <span className="ml-auto text-[10px] text-muted-foreground">u</span>
               </CommandItem>
               <CommandItem
@@ -165,11 +165,11 @@ export function CommandPalette({
                   close();
                   await runAction(
                     () => setThreadsRead(targetIds, false, qc),
-                    `Marked ${targetIds.length} unread`,
+                    t("inbox.bulk.markedUnread", { count: targetIds.length }),
                   );
                 }}
               >
-                <Mail className="mr-2 h-4 w-4" /> Mark unread
+                <Mail className="mr-2 h-4 w-4" /> {t("inbox.palette.markUnread")}
               </CommandItem>
               <CommandItem
                 onSelect={async () => {
@@ -179,7 +179,7 @@ export function CommandPalette({
                   if (ok && selectedId && targetIds.includes(selectedId)) setSelectedId(null);
                 }}
               >
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                <Trash2 className="mr-2 h-4 w-4" /> {t("common.delete")}
                 <span className="ml-auto text-[10px] text-muted-foreground">⇧3</span>
               </CommandItem>
             </CommandGroup>
@@ -187,14 +187,14 @@ export function CommandPalette({
           </>
         )}
 
-        <CommandGroup heading="Compose">
+        <CommandGroup heading={t("inbox.palette.compose")}>
           <CommandItem
             onSelect={() => {
-              toast.info("Compose — coming in Phase 3C");
+              toast.info(t("inbox.palette.composeSoon"));
               close();
             }}
           >
-            <PenSquare className="mr-2 h-4 w-4" /> New message
+            <PenSquare className="mr-2 h-4 w-4" /> {t("inbox.palette.newMessage")}
             <span className="ml-auto text-[10px] text-muted-foreground">c</span>
           </CommandItem>
           {selectedId && (
@@ -205,7 +205,7 @@ export function CommandPalette({
                 window.dispatchEvent(new Event("nomadix:reply"));
               }}
             >
-              <Reply className="mr-2 h-4 w-4" /> Reply to current thread
+              <Reply className="mr-2 h-4 w-4" /> {t("inbox.palette.replyCurrent")}
               <span className="ml-auto text-[10px] text-muted-foreground">r</span>
             </CommandItem>
           )}
@@ -213,7 +213,7 @@ export function CommandPalette({
 
         <CommandSeparator />
 
-        <CommandGroup heading="Views">
+        <CommandGroup heading={t("inbox.sidebar.views")}>
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const label = t(v.labelKey);
@@ -229,7 +229,7 @@ export function CommandPalette({
         {brands.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Brands">
+            <CommandGroup heading={t("inbox.sidebar.brands")}>
               {(brands as any[]).map((b, i) => (
                 <CommandItem
                   key={b.id}
@@ -253,7 +253,7 @@ export function CommandPalette({
         {categories.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Categories">
+            <CommandGroup heading={t("inbox.palette.categories")}>
               {(categories as any[]).slice(0, 20).map((c) => (
                 <CommandItem
                   key={c.id}
@@ -271,7 +271,7 @@ export function CommandPalette({
         {recentThreads.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Recent threads">
+            <CommandGroup heading={t("inbox.palette.recentThreads")}>
               {(recentThreads as any[]).map((t) => (
                 <CommandItem
                   key={t.id}
@@ -295,7 +295,7 @@ export function CommandPalette({
         )}
 
         <CommandSeparator />
-        <CommandGroup heading="App">
+        <CommandGroup heading={t("inbox.palette.app")}>
           <CommandItem
             onSelect={() => {
               reset();
@@ -303,7 +303,7 @@ export function CommandPalette({
               close();
             }}
           >
-            <Sparkles className="mr-2 h-4 w-4" /> Clear all filters
+            <Sparkles className="mr-2 h-4 w-4" /> {t("inbox.empty.clearFilters")}
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -311,7 +311,7 @@ export function CommandPalette({
               close();
             }}
           >
-            <SettingsIcon className="mr-2 h-4 w-4" /> Open settings
+            <SettingsIcon className="mr-2 h-4 w-4" /> {t("inbox.palette.openSettings")}
             <span className="ml-auto text-[10px] text-muted-foreground">g s</span>
           </CommandItem>
         </CommandGroup>

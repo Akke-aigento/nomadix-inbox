@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n";
 
 export interface BrandCategory {
   id: string;
@@ -55,6 +56,7 @@ export default function CategoryFormDialog({
   onClose,
   onSaved,
 }: Props) {
+  const t = useT();
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
 
@@ -78,7 +80,7 @@ export default function CategoryFormDialog({
 
   const submit = async () => {
     if (!form.slug || !form.name) {
-      toast.error("Slug and name are required");
+      toast.error(t("settings.category.errRequired"));
       return;
     }
     setBusy(true);
@@ -97,18 +99,18 @@ export default function CategoryFormDialog({
           .update(payload)
           .eq("id", category.id);
         if (error) throw error;
-        toast.success("Category updated");
+        toast.success(t("settings.category.updated"));
       } else {
         const max = existingSortOrders.length ? Math.max(...existingSortOrders) : 0;
         const { error } = await supabase
           .from("brand_categories")
           .insert({ ...payload, brand_id: brandId, sort_order: max + 10 });
         if (error) throw error;
-        toast.success("Category added");
+        toast.success(t("settings.category.added"));
       }
       onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      toast.error(err instanceof Error ? err.message : t("settings.category.saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -118,15 +120,17 @@ export default function CategoryFormDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="surface-1 max-w-xl">
         <DialogHeader>
-          <DialogTitle>{category ? "Edit category" : "Add category"}</DialogTitle>
+          <DialogTitle>
+            {category ? t("settings.category.editTitle") : t("settings.category.addTitle")}
+          </DialogTitle>
           <DialogDescription>
-            Categories help the AI tag inbound mail consistently per brand.
+            {t("settings.category.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="slug">Slug</Label>
+            <Label htmlFor="slug">{t("settings.category.slug")}</Label>
             <Input
               id="slug"
               value={form.slug}
@@ -137,7 +141,7 @@ export default function CategoryFormDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t("settings.category.name")}</Label>
             <Input
               id="name"
               value={form.name}
@@ -146,7 +150,7 @@ export default function CategoryFormDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="emoji">Emoji</Label>
+            <Label htmlFor="emoji">{t("settings.category.emoji")}</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="emoji"
@@ -172,7 +176,7 @@ export default function CategoryFormDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="color">Color</Label>
+            <Label htmlFor="color">{t("settings.category.color")}</Label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -191,23 +195,23 @@ export default function CategoryFormDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description">Description (helps AI matching)</Label>
+          <Label htmlFor="description">{t("settings.category.descriptionField")}</Label>
           <Textarea
             id="description"
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
             rows={3}
-            placeholder="Alles rond nieuwe bestellingen, order status vragen"
+            placeholder={t("settings.category.descriptionPlaceholder")}
           />
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2">
           <div>
             <Label htmlFor="is_ai_enabled" className="cursor-pointer">
-              AI may pick this category
+              {t("settings.category.aiEnabled")}
             </Label>
             <p className="text-xs text-muted-foreground">
-              Disable to keep the category but exclude it from AI auto-tagging.
+              {t("settings.category.aiEnabledHelp")}
             </p>
           </div>
           <Switch
@@ -219,10 +223,14 @@ export default function CategoryFormDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={busy}>
-            {busy ? "Saving…" : category ? "Save changes" : "Add category"}
+            {busy
+              ? t("settings.account.saving")
+              : category
+                ? t("settings.account.save")
+                : t("settings.category.addTitle")}
           </Button>
         </DialogFooter>
       </DialogContent>

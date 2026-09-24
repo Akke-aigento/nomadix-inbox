@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { useT } from "@/i18n";
 interface Address {
   id: string;
   brand_id: string;
@@ -50,6 +51,7 @@ interface Props {
 const FOLLOW_INCOMING = "__follow_incoming__";
 
 export default function BrandEmailAddressesManager({ brandId }: Props) {
+  const t = useT();
   const [rows, setRows] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState<"address" | "catchall" | null>(null);
@@ -110,7 +112,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
       if (addOpen === "address") {
         const email = formEmail.trim().toLowerCase();
         if (!email || !email.includes("@")) {
-          toast.error("Enter a valid email address");
+          toast.error(t("settings.addresses.errEmail"));
           return;
         }
         if (editing) {
@@ -119,7 +121,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
             .update({ email_address: email, label: formLabel || null })
             .eq("id", editing.id);
           if (error) throw error;
-          toast.success("Address updated");
+          toast.success(t("settings.addresses.updated"));
         } else {
           const isFirst = rows.length === 0;
           const maxOrder = rows.length
@@ -135,12 +137,12 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
               sort_order: maxOrder + 1,
             });
           if (error) throw error;
-          toast.success("Address added");
+          toast.success(t("settings.addresses.added"));
         }
       } else if (addOpen === "catchall") {
         const domain = formDomain.trim().toLowerCase().replace(/^@/, "");
         if (!domain || !domain.includes(".")) {
-          toast.error("Enter a valid domain (e.g. vanxcel.com)");
+          toast.error(t("settings.addresses.errDomain"));
           return;
         }
         const display = `*@${domain}`;
@@ -154,7 +156,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
             })
             .eq("id", editing.id);
           if (error) throw error;
-          toast.success("Catch-all updated");
+          toast.success(t("settings.addresses.catchAllUpdated"));
         } else {
           const maxOrder = rows.length
             ? Math.max(...rows.map((r) => r.sort_order))
@@ -170,7 +172,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
               sort_order: maxOrder + 1,
             });
           if (error) throw error;
-          toast.success("Catch-all added");
+          toast.success(t("settings.addresses.catchAllAdded"));
         }
       }
       await load();
@@ -189,7 +191,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
 
   const setPrimary = async (row: Address) => {
     if (row.is_catch_all) {
-      toast.error("A catch-all cannot be primary");
+      toast.error(t("settings.addresses.errCatchAllPrimary"));
       return;
     }
     setBusy(true);
@@ -208,7 +210,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
         .update({ is_primary: true })
         .eq("id", row.id);
       if (e2) throw e2;
-      toast.success("Primary updated");
+      toast.success(t("settings.addresses.primaryUpdated"));
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
@@ -226,7 +228,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
         .delete()
         .eq("id", deleting.id);
       if (error) throw error;
-      toast.success("Address removed");
+      toast.success(t("settings.addresses.removed"));
       setDeleting(null);
       await load();
     } catch (err) {
@@ -258,7 +260,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
           .eq("id", value);
         if (error) throw error;
       }
-      toast.success("Reply default updated");
+      toast.success(t("settings.addresses.replyDefaultUpdated"));
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
@@ -271,18 +273,18 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
     <div className="space-y-3 rounded-md border border-border surface-2 p-3">
       <div className="flex items-center justify-between">
         <div>
-          <Label className="text-sm">Email addresses</Label>
+          <Label className="text-sm">{t("settings.addresses.title")}</Label>
           <p className="text-xs text-muted-foreground">
-            All addresses that route to this brand. Star marks the primary.
+            {t("settings.addresses.subtitle")}
           </p>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No addresses yet — add the first one below.
+          {t("settings.addresses.empty")}
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-md border border-border">
@@ -298,10 +300,10 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
                 className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
                 title={
                   row.is_catch_all
-                    ? "Catch-all cannot be primary"
+                    ? t("settings.addresses.errCatchAllPrimary")
                     : row.is_primary
-                      ? "Primary"
-                      : "Set as primary"
+                      ? t("settings.addresses.primary")
+                      : t("settings.addresses.setPrimary")
                 }
               >
                 {row.is_catch_all ? (
@@ -315,7 +317,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
               <span className="font-mono">{row.email_address}</span>
               {row.is_primary && !row.is_catch_all && (
                 <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                  Primary
+                  {t("settings.addresses.primary")}
                 </span>
               )}
               {row.label && (
@@ -350,14 +352,14 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
 
       {rows.length > 0 && (
         <div className="space-y-1.5 border-t border-border pt-3">
-          <Label className="text-xs">Default reply-from for this brand</Label>
+          <Label className="text-xs">{t("settings.addresses.replyDefault")}</Label>
           <Select value={replyValue} onValueChange={setReplyDefault} disabled={busy}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={FOLLOW_INCOMING}>
-                Follow incoming (reply from address mail was sent to)
+                {t("settings.addresses.followIncoming")}
               </SelectItem>
               {rows
                 .filter((r) => !r.is_catch_all)
@@ -379,7 +381,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
           onClick={() => openAdd("address")}
         >
           <Mail className="mr-2 h-4 w-4" />
-          Add email address
+          {t("settings.addresses.add")}
         </Button>
         <Button
           type="button"
@@ -388,7 +390,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
           onClick={() => openAdd("catchall")}
         >
           <Globe className="mr-2 h-4 w-4" />
-          Add catch-all domain
+          {t("settings.addresses.addCatchAll")}
         </Button>
       </div>
 
@@ -410,7 +412,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
           <div className="space-y-3">
             {addOpen === "address" ? (
               <div className="space-y-1.5">
-                <Label htmlFor="addr-email">Email address</Label>
+                <Label htmlFor="addr-email">{t("settings.addresses.email")}</Label>
                 <Input
                   id="addr-email"
                   type="email"
@@ -421,7 +423,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
               </div>
             ) : (
               <div className="space-y-1.5">
-                <Label htmlFor="addr-domain">Domain</Label>
+                <Label htmlFor="addr-domain">{t("settings.addresses.domain")}</Label>
                 <Input
                   id="addr-domain"
                   value={formDomain}
@@ -429,13 +431,13 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
                   placeholder="vanxcel.com"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Will display as <span className="font-mono">*@{formDomain || "domain"}</span>
+                  {t("settings.addresses.willDisplayAs")} <span className="font-mono">*@{formDomain || "domain"}</span>
                 </p>
               </div>
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="addr-label">Label (optional)</Label>
+              <Label htmlFor="addr-label">{t("settings.addresses.label")}</Label>
               <Input
                 id="addr-label"
                 value={formLabel}
@@ -449,7 +451,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
 
           <DialogFooter>
             <Button variant="ghost" onClick={closeForm} disabled={busy}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button onClick={submitForm} disabled={busy}>
               {busy ? "Saving…" : editing ? "Save" : "Add"}
@@ -465,7 +467,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
       >
         <AlertDialogContent className="surface-1">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this address?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.addresses.removeTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               <span className="font-mono">{deleting?.email_address}</span> will
               no longer route new mail. Existing messages stay linked to this
@@ -473,7 +475,7 @@ export default function BrandEmailAddressesManager({ brandId }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={busy}>
               {busy ? "Removing…" : "Remove"}
             </AlertDialogAction>

@@ -4,8 +4,10 @@ import { Inbox, Settings, LogOut, Filter } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 
 export default function AppShell({ children }: { children: ReactNode }) {
+  const t = useT();
   const { user, signOut } = useAuth();
   const location = useLocation();
 
@@ -34,12 +36,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-primary" />
             <span className="text-sm font-semibold tracking-tight">Nomadix</span>
-            <span className="text-xs text-muted-foreground">Unified Inbox</span>
+            <span className="text-xs text-muted-foreground">{t("auth.appName")}</span>
           </div>
           <nav className="ml-4 flex items-center gap-1">
-            {navItem("/inbox", "Inbox", Inbox)}
-            {navItem("/rules", "Rules", Filter)}
-            {navItem("/settings", "Settings", Settings)}
+            {navItem("/inbox", t("views.inbox"), Inbox)}
+            {navItem("/rules", t("rules.title"), Filter)}
+            {navItem("/settings", t("settings.title"), Settings)}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
             <span className="hidden sm:inline">{user?.email}</span>
@@ -50,7 +52,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               className="h-7 px-2 text-muted-foreground hover:text-foreground"
             >
               <LogOut className="h-3.5 w-3.5" />
-              <span className="ml-1">Sign out</span>
+              <span className="ml-1">{t("auth.signOut")}</span>
             </Button>
           </div>
         </div>

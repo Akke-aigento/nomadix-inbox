@@ -1,15 +1,17 @@
 import { Inbox, Search, MailOpen, Filter, Sparkles, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
+import { useT } from "@/i18n";
 
 export function EmptyInbox() {
+  const t = useT();
   const { filters } = useInboxFilters();
   if (filters.view === "archive") {
     return (
       <Wrapper
         icon={<Archive className="h-6 w-6" />}
-        title="Archive is empty"
-        body="Threads you archive show up here."
+        title={t("inbox.empty.archiveTitle")}
+        body={t("inbox.empty.archiveBody")}
       />
     );
   }
@@ -17,37 +19,38 @@ export function EmptyInbox() {
     return (
       <Wrapper
         icon={<Sparkles className="h-6 w-6" />}
-        title="Nothing waiting on you"
-        body="The AI hasn't flagged anything as needing a reply right now."
+        title={t("inbox.empty.needsReplyTitle")}
+        body={t("inbox.empty.needsReplyBody")}
       />
     );
   }
   return (
     <Wrapper
       icon={<MailOpen className="h-6 w-6" />}
-      title="Inbox Zero — nice work."
-      body="Nothing left to read. Triage achieved 🎉"
+      title={t("inbox.empty.zeroTitle")}
+      body={t("inbox.empty.zeroBody")}
     />
   );
 }
 
 export function NoResults() {
+  const t = useT();
   const { filters, reset, update, activeChipCount } = useInboxFilters();
 
   if (filters.search) {
     return (
       <Wrapper
         icon={<Search className="h-6 w-6" />}
-        title={`No results for "${filters.search}"`}
-        body="Try a different keyword, or remove your active filters."
+        title={t("inbox.empty.noResultsTitle", { query: filters.search })}
+        body={t("inbox.empty.noResultsBody")}
         action={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => update({ search: "" })}>
-              Clear search
+              {t("inbox.empty.clearSearch")}
             </Button>
             {activeChipCount > 0 && (
               <Button variant="ghost" size="sm" onClick={reset}>
-                Clear all filters
+                {t("inbox.empty.clearFilters")}
               </Button>
             )}
           </div>
@@ -59,11 +62,11 @@ export function NoResults() {
   return (
     <Wrapper
       icon={<Filter className="h-6 w-6" />}
-      title="No mail matches these filters"
-      body="Loosen up your filters or start fresh."
+      title={t("inbox.empty.noMatchTitle")}
+      body={t("inbox.empty.noMatchBody")}
       action={
         <Button variant="outline" size="sm" onClick={reset}>
-          Clear all filters
+          {t("inbox.empty.clearFilters")}
         </Button>
       }
     />
@@ -71,26 +74,27 @@ export function NoResults() {
 }
 
 export function NoThreadSelected() {
+  const t = useT();
   return (
     <Wrapper
       className="h-full"
       icon={<Inbox className="h-6 w-6" />}
-      title="Select a thread to read"
+      title={t("inbox.empty.selectTitle")}
       body={
         <>
-          Press{" "}
+          {t("inbox.empty.selectHintPress")}{" "}
           <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-xs">
             j
           </kbd>{" "}
-          to focus the first thread, then{" "}
+          {t("inbox.empty.selectHintFocus")}{" "}
           <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-xs">
             o
           </kbd>{" "}
-          to open it. Or hit{" "}
+          {t("inbox.empty.selectHintOpen")}{" "}
           <kbd className="rounded border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-xs">
             ⌘K
           </kbd>{" "}
-          for the command palette.
+          {t("inbox.empty.selectHintPalette")}
         </>
       }
     />

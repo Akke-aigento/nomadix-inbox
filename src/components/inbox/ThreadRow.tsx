@@ -1,9 +1,10 @@
 import { memo } from "react";
-import { formatDistanceToNowStrict, format, isToday, isYesterday } from "date-fns";
 import { Paperclip, AlertTriangle, MessageSquareReply, Sparkles, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useI18n, useT } from "@/i18n";
+import { fmtListTime } from "@/i18n/format";
 
 // Density woont in lib/density (gedeeld met Instellingen > Voorkeuren).
 export type { Density } from "@/lib/density";
@@ -15,30 +16,13 @@ const HEIGHT: Record<Density, number> = {
   dense: 36,
 };
 
-function relativeTime(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isToday(d))
-    return formatDistanceToNowStrict(d)
-      .replace(" minutes", "m")
-      .replace(" minute", "m")
-      .replace(" hours", "h")
-      .replace(" hour", "h")
-      .replace(" seconds", "s")
-      .replace(" second", "s");
-  if (isYesterday(d)) return "Yesterday";
-  const days = (Date.now() - d.getTime()) / 86400000;
-  if (days < 7) return format(d, "EEE");
-  return format(d, "MMM d");
-}
-
-function senderName(thread: ThreadRow): string {
+function senderName(thread: ThreadRow, unknown: string): string {
   const m = thread.latest_message;
   if (m?.from_name) return m.from_name;
   if (m?.from_address) return m.from_address.split("@")[0];
   if (Array.isArray(thread.participants) && thread.participants[0])
     return String(thread.participants[0]).replace(/<.*>/, "").trim() || String(thread.participants[0]);
-  return "(Unknown)";
+  return unknown;
 }
 
 function prettyCategory(slug: string): string {
@@ -76,7 +60,11 @@ function ThreadRowImpl({
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 130);
-  const time = relativeTime(thread.last_message_at);
+  const t = useT();
+  const { locale } = useI18n();
+  const time = thread.last_message_at
+    ? fmtListTime(thread.last_message_at, locale, t("inbox.row.yesterday"))
+    : "";
   const isUrgent = m?.urgency === "high" || m?.urgency === "urgent";
   const needsReply = !!m?.needs_reply;
   const showChips = density !== "dense";
@@ -119,7 +107,7 @@ function ThreadRowImpl({
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}
       >
-        <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label="Select thread" />
+        <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label={t("inbox.row.select")} />
       </div>
 
       {/* Content */}
@@ -140,7 +128,7 @@ function ThreadRowImpl({
                 isUnread ? "font-semibold" : "text-muted-foreground",
               )}
             >
-              {senderName(thread)}
+              {senderName(thread, t("inbox.row.unknown"))}
             </span>
             <span
               className={cn(
@@ -148,7 +136,7 @@ function ThreadRowImpl({
                 isUnread ? "font-medium text-foreground" : "text-muted-foreground",
               )}
             >
-              {thread.subject || "(no subject)"}
+              {thread.subject || t("inbox.row.noSubject")}
             </span>
           </div>
         ) : (
@@ -161,7 +149,7 @@ function ThreadRowImpl({
                   density === "comfortable" ? "max-w-[180px]" : "max-w-[140px]",
                 )}
               >
-                {senderName(thread)}
+                {senderName(thread, t("inbox.row.unknown"))}
               </span>
               {thread.message_count > 1 && (
                 <span className="rounded-sm bg-muted/60 px-1 text-[10px] text-muted-foreground">
@@ -174,7 +162,7 @@ function ThreadRowImpl({
                   isUnread ? "font-medium text-foreground" : "text-foreground/80",
                 )}
               >
-                {thread.subject || "(no subject)"}
+                {thread.subject || t("inbox.row.noSubject")}
               </span>
             </div>
 
@@ -202,13 +190,13 @@ function ThreadRowImpl({
                 {isUrgent && (
                   <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    Urgent
+                    {t("inbox.row.urgent")}
                   </span>
                 )}
                 {needsReply && (
                   <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                     <MessageSquareReply className="h-2.5 w-2.5" />
-                    Reply
+                    {t("inbox.row.reply")}
                   </span>
                 )}
                 {density === "comfortable" && preview && (

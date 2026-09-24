@@ -2,10 +2,12 @@ import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBrandsQuery } from "@/hooks/useThreadsQuery";
+import { useT } from "@/i18n";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { cn } from "@/lib/utils";
 
 export function FilterChips() {
+  const t = useT();
   const { filters, update, reset, activeChipCount } = useInboxFilters();
   const { data: brands = [] } = useBrandsQuery();
 
@@ -36,7 +38,7 @@ export function FilterChips() {
     const c = (categories as any[]).find((x) => x.id === id);
     chips.push({
       key: `cat-${id}`,
-      label: c?.name ?? "Category",
+      label: c?.name ?? t("inbox.chips.category"),
       color: c?.color,
       onRemove: () => update({ categories: filters.categories.filter((x) => x !== id) }),
     });
@@ -45,7 +47,12 @@ export function FilterChips() {
   if (filters.state !== "all") {
     chips.push({
       key: "state",
-      label: filters.state === "unread" ? "Unread" : filters.state === "read" ? "Read" : filters.state,
+      label:
+        filters.state === "unread"
+          ? t("inbox.toolbar.stateUnread")
+          : filters.state === "read"
+            ? t("inbox.toolbar.stateRead")
+            : filters.state,
       onRemove: () => update({ state: "all" }),
     });
   }
@@ -53,7 +60,7 @@ export function FilterChips() {
   if (filters.hasAttachments) {
     chips.push({
       key: "attach",
-      label: "Has attachment",
+      label: t("inbox.toolbar.hasAttachment"),
       onRemove: () => update({ hasAttachments: false }),
     });
   }
@@ -61,7 +68,7 @@ export function FilterChips() {
   if (filters.urgency === "high") {
     chips.push({
       key: "urgency",
-      label: "Urgent",
+      label: t("inbox.row.urgent"),
       onRemove: () => update({ urgency: "any" }),
     });
   }
@@ -69,7 +76,7 @@ export function FilterChips() {
   if (filters.from) {
     chips.push({
       key: "from",
-      label: `From: ${filters.from}`,
+      label: t("inbox.chips.from", { value: filters.from }),
       onRemove: () => update({ from: "" }),
     });
   }
@@ -77,7 +84,7 @@ export function FilterChips() {
   if (filters.sentTo) {
     chips.push({
       key: "to",
-      label: `To: ${filters.sentTo}`,
+      label: t("inbox.chips.to", { value: filters.sentTo }),
       onRemove: () => update({ sentTo: "" }),
     });
   }
@@ -85,7 +92,8 @@ export function FilterChips() {
   if (filters.dateRange !== "all") {
     chips.push({
       key: "range",
-      label: filters.dateRange === "7d" ? "Last 7 days" : "Last 30 days",
+      label:
+        filters.dateRange === "7d" ? t("inbox.chips.last7days") : t("inbox.chips.last30days"),
       onRemove: () => update({ dateRange: "all" }),
     });
   }
@@ -109,7 +117,7 @@ export function FilterChips() {
           className={cn(
             "group inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] text-foreground/90 transition hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive",
           )}
-          title="Remove filter"
+          title={t("inbox.chips.remove")}
         >
           {c.color && (
             <span
@@ -126,7 +134,7 @@ export function FilterChips() {
           onClick={reset}
           className="ml-auto text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          Clear all
+          {t("inbox.chips.clearAll")}
         </button>
       )}
     </div>

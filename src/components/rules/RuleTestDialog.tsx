@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { RoutingRule } from "./RoutingRuleFormDialog";
 
+import { useI18n, useT } from "@/i18n";
+import { fmtDateTime } from "@/i18n/format";
 interface MessageRow {
   id: string;
   from_address: string;
@@ -62,6 +64,8 @@ function matchesRule(rule: RoutingRule, msg: MessageRow): boolean {
 }
 
 export default function RuleTestDialog({ rule, onClose }: Props) {
+  const t = useT();
+  const { locale } = useI18n();
   const [loading, setLoading] = useState(false);
   const [matches, setMatches] = useState<MessageRow[]>([]);
   const [scanned, setScanned] = useState(0);
@@ -97,12 +101,12 @@ export default function RuleTestDialog({ rule, onClose }: Props) {
         <DialogHeader>
           <DialogTitle>Test rule: {rule?.name}</DialogTitle>
           <DialogDescription>
-            Dry-run against the last 50 inbound messages. Nothing is changed.
+            {t("rules.test.description")}
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Scanning…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("rules.test.scanning")}</div>
         ) : (
           <div className="space-y-2 overflow-y-auto">
             <div className="text-xs text-muted-foreground">
@@ -111,7 +115,7 @@ export default function RuleTestDialog({ rule, onClose }: Props) {
             </div>
             {matches.length === 0 ? (
               <div className="rounded-md border border-border surface-2 px-3 py-4 text-sm text-muted-foreground">
-                No matches in the last 50 messages.
+                {t("rules.test.empty")}
               </div>
             ) : (
               <div className="overflow-hidden rounded-md border border-border">
@@ -125,7 +129,7 @@ export default function RuleTestDialog({ rule, onClose }: Props) {
                         {m.from_name || m.from_address}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(m.received_at).toLocaleString()}
+                        {fmtDateTime(m.received_at, locale)}
                       </div>
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
@@ -139,9 +143,7 @@ export default function RuleTestDialog({ rule, onClose }: Props) {
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
+          <Button variant="ghost" onClick={onClose}>{t("settings.brand.close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

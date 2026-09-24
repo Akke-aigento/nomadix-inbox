@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ensureNoActiveSync } from "@/lib/sync-guard";
 
+import { useI18n, useT } from "@/i18n";
+import { fmtDateTime } from "@/i18n/format";
 interface EmailAccount {
   id: string;
   label: string;
@@ -84,6 +86,8 @@ function toForm(a: EmailAccount): AccountForm {
 }
 
 export default function EmailAccountTab() {
+  const t = useT();
+  const { locale } = useI18n();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [forms, setForms] = useState<Record<string, AccountForm>>({});
   const [passwords, setPasswords] = useState<Record<string, string>>({});
@@ -211,7 +215,7 @@ export default function EmailAccountTab() {
         clearPoll();
         setSyncingId(null);
         setSyncProgress(null);
-        toast.error("Sync stalled — no heartbeat for over 60s");
+        toast.error(t("settings.email.stalled"));
         await load();
         return;
       }
@@ -226,7 +230,7 @@ export default function EmailAccountTab() {
       const fetched = data.messages_fetched ?? 0;
 
       if (data.status === "batch_done" && batchNum < MAX_BATCHES) {
-        toast.info(`Batch ${batchNum} done (${fetched}) — continuing…`);
+        toast.info(t("settings.email.batchDone", { n: batchNum, count: fetched }));
         await continueBatch(accountId, batchNum + 1);
         return;
       }
@@ -234,9 +238,9 @@ export default function EmailAccountTab() {
       setSyncingId(null);
       setSyncProgress(null);
       if (data.status === "ok") {
-        toast.success(`Sync done — ${fetched} message${fetched === 1 ? "" : "s"} fetched`);
+        toast.success(t("settings.email.syncDone", { count: fetched }));
       } else if (data.status === "batch_done") {
-        toast.warning(`Stopped after ${MAX_BATCHES} batches — click Sync again to continue`);
+        toast.warning(t("settings.email.syncStopped", { count: MAX_BATCHES }));
       } else if (data.status === "partial") {
         toast.warning(
           `Sync partial — ${fetched} fetched${data.error_message ? `: ${data.error_message}` : ""}`,
@@ -286,7 +290,7 @@ export default function EmailAccountTab() {
   const saveExisting = async (account: EmailAccount) => {
     const form = forms[account.id];
     if (!form?.username) {
-      toast.error("Gebruikersnaam is verplicht");
+      toast.error(t("settings.email.errUsername"));
       return;
     }
     setBusyId(account.id);
@@ -302,10 +306,10 @@ export default function EmailAccountTab() {
         });
         if (rpcErr) throw rpcErr;
       }
-      toast.success("Opgeslagen");
+      toast.success(t("settings.email.saved"));
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Opslaan mislukt");
+      toast.error(err instanceof Error ? err.message : t("settings.email.saveFailed"));
     } finally {
       setBusyId(null);
     }
@@ -313,7 +317,7 @@ export default function EmailAccountTab() {
 
   const createAccount = async () => {
     if (!newForm?.username) {
-      toast.error("Gebruikersnaam is verplicht");
+      toast.error(t("settings.email.errUsername"));
       return;
     }
     setBusyId("new");
@@ -333,10 +337,10 @@ export default function EmailAccountTab() {
       }
       setNewForm(null);
       setNewPassword("");
-      toast.success("Account toegevoegd");
+      toast.success(t("settings.email.added"));
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Toevoegen mislukt");
+      toast.error(err instanceof Error ? err.message : t("settings.email.addFailed"));
     } finally {
       setBusyId(null);
     }
@@ -347,10 +351,10 @@ export default function EmailAccountTab() {
     try {
       const { error } = await supabase.from("email_accounts").delete().eq("id", account.id);
       if (error) throw error;
-      toast.success("Account verwijderd");
+      toast.success(t("settings.email.removed"));
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Verwijderen mislukt");
+      toast.error(err instanceof Error ? err.message : t("settings.email.deleteFailed"));
     } finally {
       setBusyId(null);
       setDeleteTarget(null);
@@ -359,7 +363,7 @@ export default function EmailAccountTab() {
 
   const test = async (account: EmailAccount) => {
     if (!account.vault_secret_id) {
-      toast.error("Stel eerst een wachtwoord in en sla op");
+      toast.error(t("settings.email.errNoPassword"));
       return;
     }
     setTestingId(account.id);
@@ -370,13 +374,13 @@ export default function EmailAccountTab() {
       if (error) throw error;
       const result = data as { ok: boolean; mailbox_size?: number; error?: string };
       if (result.ok) {
-        toast.success(`Verbonden — INBOX heeft ${result.mailbox_size} berichten`);
+        toast.success(t("settings.email.connected", { count: result.mailbox_size }));
       } else {
-        toast.error(result.error ?? "Verbinding mislukt");
+        toast.error(result.error ?? t("settings.email.connectFailed"));
       }
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Test mislukt");
+      toast.error(err instanceof Error ? err.message : t("settings.email.testFailed"));
     } finally {
       setTestingId(null);
     }
@@ -384,7 +388,7 @@ export default function EmailAccountTab() {
 
   const syncNow = async (account: EmailAccount) => {
     if (!account.vault_secret_id) {
-      toast.error("Stel eerst een wachtwoord in en sla op");
+      toast.error(t("settings.email.errNoPassword"));
       return;
     }
     const guard = await ensureNoActiveSync(account.id);
@@ -406,7 +410,7 @@ export default function EmailAccountTab() {
         toast.error(result.error ?? "Sync starten mislukt");
         return;
       }
-      toast.info("Sync gestart — nieuwe mail ophalen…");
+      toast.info(t("settings.email.syncStarted"));
       pollSyncLog(result.sync_log_id, account.id, 1);
     } catch (err) {
       setSyncingId(null);
@@ -432,22 +436,22 @@ export default function EmailAccountTab() {
       if (result.error) {
         toast.error(result.error);
       } else if (!result.total) {
-        toast.success("Niets te analyseren — alle berichten hebben een samenvatting");
+        toast.success(t("settings.email.nothingToAnalyze"));
       } else {
         const parts = [`${result.analyzed ?? 0} geanalyseerd`];
         if ((result.skipped ?? 0) > 0) parts.push(`${result.skipped} overgeslagen`);
         if ((result.errors ?? 0) > 0) parts.push(`${result.errors} fouten`);
-        toast.success(`AI-analyse — ${parts.join(", ")}`);
+        toast.success(t("settings.email.analysisDone", { summary: parts.join(", ") }));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Analyse mislukt");
+      toast.error(err instanceof Error ? err.message : t("settings.email.analyzeFailed"));
     } finally {
       setAnalyzing(false);
     }
   };
 
   const statusBadge = (s: string | null) => {
-    if (!s) return <Badge variant="secondary">Nog niet getest</Badge>;
+    if (!s) return <Badge variant="secondary">{t("settings.email.notTested")}</Badge>;
     if (s === "ok")
       return (
         <Badge className="bg-success text-success-foreground hover:bg-success/90">
@@ -457,17 +461,17 @@ export default function EmailAccountTab() {
     if (s === "partial")
       return (
         <Badge className="bg-warning text-warning-foreground hover:bg-warning/90">
-          <Clock className="h-3 w-3" /> Gedeeltelijk
+          <Clock className="h-3 w-3" /> {t("settings.email.partial")}
         </Badge>
       );
     return (
       <Badge variant="destructive">
-        <XCircle className="h-3 w-3" /> Fout
+        <XCircle className="h-3 w-3" /> {t("settings.email.error")}
       </Badge>
     );
   };
 
-  if (loading) return <div className="text-sm text-muted-foreground">Laden…</div>;
+  if (loading) return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
 
   const renderFields = (
     form: AccountForm,
@@ -479,7 +483,7 @@ export default function EmailAccountTab() {
   ) => (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2 sm:col-span-2">
-        <Label htmlFor={`${idPrefix}-label`}>Label</Label>
+        <Label htmlFor={`${idPrefix}-label`}>{t("settings.email.label")}</Label>
         <Input
           id={`${idPrefix}-label`}
           value={form.label}
@@ -488,7 +492,7 @@ export default function EmailAccountTab() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-imap-host`}>IMAP host</Label>
+        <Label htmlFor={`${idPrefix}-imap-host`}>{t("settings.email.imapHost")}</Label>
         <Input
           id={`${idPrefix}-imap-host`}
           value={form.imap_host}
@@ -496,7 +500,7 @@ export default function EmailAccountTab() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-imap-port`}>IMAP poort</Label>
+        <Label htmlFor={`${idPrefix}-imap-port`}>{t("settings.email.imapPort")}</Label>
         <Input
           id={`${idPrefix}-imap-port`}
           type="number"
@@ -506,7 +510,7 @@ export default function EmailAccountTab() {
       </div>
       <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2 sm:col-span-2">
         <Label htmlFor={`${idPrefix}-imap-tls`} className="text-sm font-normal">
-          IMAP gebruikt TLS
+          {t("settings.email.imapTls")}
         </Label>
         <Switch
           id={`${idPrefix}-imap-tls`}
@@ -516,7 +520,7 @@ export default function EmailAccountTab() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-smtp-host`}>SMTP host</Label>
+        <Label htmlFor={`${idPrefix}-smtp-host`}>{t("settings.email.smtpHost")}</Label>
         <Input
           id={`${idPrefix}-smtp-host`}
           value={form.smtp_host}
@@ -524,7 +528,7 @@ export default function EmailAccountTab() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-smtp-port`}>SMTP poort</Label>
+        <Label htmlFor={`${idPrefix}-smtp-port`}>{t("settings.email.smtpPort")}</Label>
         <Input
           id={`${idPrefix}-smtp-port`}
           type="number"
@@ -534,7 +538,7 @@ export default function EmailAccountTab() {
       </div>
       <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2 sm:col-span-2">
         <Label htmlFor={`${idPrefix}-smtp-tls`} className="text-sm font-normal">
-          SMTP gebruikt TLS
+          {t("settings.email.smtpTls")}
         </Label>
         <Switch
           id={`${idPrefix}-smtp-tls`}
@@ -544,7 +548,7 @@ export default function EmailAccountTab() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-username`}>Gebruikersnaam (inlogadres)</Label>
+        <Label htmlFor={`${idPrefix}-username`}>{t("settings.email.username")}</Label>
         <Input
           id={`${idPrefix}-username`}
           autoComplete="username"
@@ -557,7 +561,7 @@ export default function EmailAccountTab() {
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-password`}>Wachtwoord</Label>
+        <Label htmlFor={`${idPrefix}-password`}>{t("settings.email.password")}</Label>
         <Input
           id={`${idPrefix}-password`}
           type="password"
@@ -574,10 +578,10 @@ export default function EmailAccountTab() {
       <div className="flex items-center justify-between rounded-md border border-border surface-2 px-3 py-2 sm:col-span-2">
         <div>
           <Label htmlFor={`${idPrefix}-sync`} className="text-sm font-normal">
-            Inbox synchroniseren
+            {t("settings.email.syncEnabled")}
           </Label>
           <p className="text-xs text-muted-foreground">
-            Uit voor accounts die alleen verzenden.
+            {t("settings.email.syncEnabledHelp")}
           </p>
         </div>
         <Switch
@@ -593,7 +597,7 @@ export default function EmailAccountTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold">E-mailaccounts</h2>
+          <h2 className="text-base font-semibold">{t("settings.email.title")}</h2>
           <p className="text-xs text-muted-foreground">
             Eén account per domein — Migadu staat verzenden alleen toe vanaf het eigen domein.
           </p>
@@ -603,13 +607,13 @@ export default function EmailAccountTab() {
             variant="outline"
             onClick={analyzeBacklog}
             disabled={analyzing || !!syncingId || !!testingId}
-            title="AI-analyse voor berichten zonder samenvatting"
+            title={t("settings.email.analyzeTitle")}
           >
             <Sparkles className={`h-4 w-4 ${analyzing ? "animate-pulse" : ""}`} />
-            {analyzing ? "Analyseren…" : "Backlog analyseren"}
+            {analyzing ? t("settings.email.analyzing") : t("settings.email.analyzeBacklog")}
           </Button>
           <Button onClick={() => setNewForm({ ...newAccountDefaults })} disabled={!!newForm}>
-            <Plus className="h-4 w-4" /> Account toevoegen
+            <Plus className="h-4 w-4" /> {t("settings.email.add")}
           </Button>
         </div>
       </div>
@@ -639,7 +643,7 @@ export default function EmailAccountTab() {
                   size="icon"
                   onClick={() => setDeleteTarget(account)}
                   disabled={busyId === account.id || isSyncing}
-                  title="Account verwijderen"
+                  title={t("settings.email.delete")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -656,15 +660,15 @@ export default function EmailAccountTab() {
             )}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Stat label="Laatste sync">
+              <Stat label={t("settings.email.lastSync")}>
                 <span className="inline-flex items-center gap-1 text-sm">
                   <Clock className="h-3 w-3 text-muted-foreground" />
                   {account.last_sync_at
-                    ? new Date(account.last_sync_at).toLocaleString()
-                    : "Nooit"}
+                    ? fmtDateTime(account.last_sync_at, locale)
+                    : t("settings.email.never")}
                 </span>
               </Stat>
-              <Stat label="Laatste fout">
+              <Stat label={t("settings.email.lastError")}>
                 <span className="text-sm text-muted-foreground">
                   {account.last_sync_error ?? "—"}
                 </span>
@@ -677,7 +681,7 @@ export default function EmailAccountTab() {
                 onClick={() => test(account)}
                 disabled={testingId === account.id || isSyncing || busyId === account.id}
               >
-                {testingId === account.id ? "Testen…" : "Test verbinding"}
+                {testingId === account.id ? t("settings.email.testing") : t("settings.email.test")}
               </Button>
               <Button
                 variant="outline"
@@ -689,7 +693,7 @@ export default function EmailAccountTab() {
                   ? syncProgress
                     ? `Syncen… (${syncProgress.fetched}${syncProgress.batch > 1 ? `, batch ${syncProgress.batch}` : ""})`
                     : "Syncen…"
-                  : "Nu syncen"}
+                  : t("settings.email.syncNow")}
               </Button>
               <Button onClick={() => saveExisting(account)} disabled={busyId === account.id}>
                 {busyId === account.id ? "Opslaan…" : "Wijzigingen opslaan"}
@@ -702,9 +706,9 @@ export default function EmailAccountTab() {
       {newForm && (
         <Card className="surface-1 border-border p-5">
           <div className="mb-4">
-            <h3 className="text-base font-semibold">Nieuw e-mailaccount</h3>
+            <h3 className="text-base font-semibold">{t("settings.email.newAccount")}</h3>
             <p className="text-xs text-muted-foreground">
-              Standaard Migadu-instellingen, synchroniseren staat uit.
+              {t("settings.email.newAccountHelp")}
             </p>
           </div>
 
@@ -731,14 +735,14 @@ export default function EmailAccountTab() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Account verwijderen?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.email.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget?.username} wordt verwijderd. Verzenden vanaf dit domein werkt daarna
               niet meer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteTarget && deleteAccount(deleteTarget)}>
               Verwijderen
             </AlertDialogAction>

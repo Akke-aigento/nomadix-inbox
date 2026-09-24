@@ -20,11 +20,11 @@ import { useBrandsQuery, useSidebarCounts } from "@/hooks/useThreadsQuery";
 import { useInboxFilters, type ViewKind } from "@/hooks/useInboxFilters";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDistanceToNow } from "date-fns";
+import { fmtDistance } from "@/i18n/format";
 import { toast } from "sonner";
 import { ensureNoActiveSync } from "@/lib/sync-guard";
 import { VIEWS } from "@/lib/views";
-import { useT } from "@/i18n";
+import { useI18n, useT } from "@/i18n";
 
 
 export function InboxSidebar({
@@ -37,6 +37,7 @@ export function InboxSidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const t = useT();
+  const { locale } = useI18n();
   const { filters, update } = useInboxFilters();
   const { data: brands } = useBrandsQuery();
   const { data: counts } = useSidebarCounts();
@@ -116,7 +117,7 @@ export function InboxSidebar({
           size="icon"
           className="h-7 w-7"
           onClick={onToggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? t("inbox.sidebar.expand") : t("inbox.sidebar.collapse")}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
@@ -124,7 +125,7 @@ export function InboxSidebar({
 
       {/* Views */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
-        <Section title="Views" collapsed={collapsed}>
+        <Section title={t("inbox.sidebar.views")} collapsed={collapsed}>
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const active = isViewActive(v.key);
@@ -151,7 +152,7 @@ export function InboxSidebar({
         </Section>
 
         {brands && brands.length > 0 && (
-          <Section title="Brands" collapsed={collapsed}>
+          <Section title={t("inbox.sidebar.brands")} collapsed={collapsed}>
             {brands.map((b: any) => {
               const active = isBrandActive(b.slug);
               const badge = counts?.perBrand?.[b.id] ?? 0;
@@ -196,7 +197,7 @@ export function InboxSidebar({
                 await supabase.functions.invoke("sync-inbox", { body: { account_id: a.id } });
               }
               if (skipped > 0 && accountList.length > 1) {
-                toast.info(`${skipped} account(s) overgeslagen — sync al bezig`);
+                toast.info(t("inbox.sidebar.syncSkipped", { count: skipped }));
               }
             } finally {
               setLocalTriggering(false);
@@ -212,14 +213,14 @@ export function InboxSidebar({
           {!collapsed && (
             <span className="truncate">
               {syncing
-                ? "Syncing…"
+                ? t("inbox.sidebar.syncing")
                 : lastSyncStatus === "error"
-                ? "Sync failed — retry"
-                : lastSyncStatus === "running"
-                ? "Sync in progress…"
-                : lastSync
-                ? `Synced ${formatDistanceToNow(new Date(lastSync), { addSuffix: true })}`
-                : "Not synced yet"}
+                  ? t("inbox.sidebar.syncFailed")
+                  : lastSyncStatus === "running"
+                    ? t("inbox.sidebar.syncRunning")
+                    : lastSync
+                      ? t("inbox.sidebar.syncedAgo", { when: fmtDistance(lastSync, locale) })
+                      : t("inbox.sidebar.neverSynced")}
             </span>
           )}
         </button>
@@ -230,22 +231,25 @@ export function InboxSidebar({
               const { data: accs } = await supabase.from("email_accounts").select("id");
               const accountList = accs || [];
               if (accountList.length === 0) {
-                toast.error("Geen e-mailaccount geconfigureerd");
+                toast.error(t("inbox.sidebar.backfillNoAccount"));
                 return;
               }
-              toast.info("Historische backfill gestart — dit kan tot 2 minuten duren");
+              toast.info(t("inbox.sidebar.backfillStarted"));
               for (const a of accountList) {
                 const { data, error } = await supabase.functions.invoke("backfill-inbox", {
                   body: { account_id: a.id },
                 });
                 if (error) {
-                  toast.error(`Backfill mislukt: ${error.message}`);
+                  toast.error(t("inbox.sidebar.backfillFailed", { error: error.message }));
                 } else if (data?.error) {
-                  toast.error(`Backfill: ${data.error}`);
+                  toast.error(t("inbox.sidebar.backfillError", { error: data.error }));
                 } else {
-                  const more = data?.more_to_do ? " (meer te doen — klik nogmaals)" : "";
+                  const more = data?.more_to_do ? t("inbox.sidebar.backfillMore") : "";
                   toast.success(
-                    `Backfill: ${data?.messages_fetched ?? 0} mails opgehaald${more}`,
+                    t("inbox.sidebar.backfillDone", {
+                      count: data?.messages_fetched ?? 0,
+                      more,
+                    }),
                   );
                 }
               }
@@ -258,10 +262,10 @@ export function InboxSidebar({
             "mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] disabled:opacity-60",
             collapsed && "justify-center",
           )}
-          title="Haal alle historische mails in één keer op"
+          title={t("inbox.sidebar.backfillHint")}
         >
           <History className="h-3.5 w-3.5" />
-          {!collapsed && <span className="truncate">Historische backfill</span>}
+          {!collapsed && <span className="truncate">{t("inbox.sidebar.backfill")}</span>}
         </button>
         <button
           onClick={() => navigate("/settings")}
@@ -271,7 +275,7 @@ export function InboxSidebar({
           )}
         >
           <SettingsIcon className="h-3.5 w-3.5" />
-          {!collapsed && <span>Settings</span>}
+          {!collapsed && <span>{t("settings.title")}</span>}
         </button>
       </div>
     </aside>

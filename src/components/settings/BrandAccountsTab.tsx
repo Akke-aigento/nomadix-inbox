@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import BrandAccountFormDialog, { type BrandAccount } from "./BrandAccountFormDialog";
+import { useT } from "@/i18n";
 
 interface Props {
   brandId: string;
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) {
+  const t = useT();
   const [accounts, setAccounts] = useState<BrandAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<BrandAccount | null>(null);
@@ -96,7 +98,7 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
     }
     setAccounts((acc) => acc.filter((a) => a.id !== deleting.id));
     setDeleting(null);
-    toast.success("Account removed");
+    toast.success(t("settings.accounts.removed"));
   };
 
   return (
@@ -106,15 +108,15 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
           People who can send mail under this brand. Each has their own signature.
         </p>
         <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> Add account
+          <Plus className="h-4 w-4" /> {t("settings.accounts.add")}
         </Button>
       </div>
 
       <div className="overflow-hidden rounded-md border border-border surface-1">
         {loading ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">Loading…</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("common.loading")}</div>
         ) : accounts.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-muted-foreground">No accounts yet.</div>
+          <div className="px-3 py-6 text-sm text-muted-foreground">{t("settings.accounts.empty")}</div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext
@@ -153,13 +155,13 @@ export default function BrandAccountsTab({ brandId, brandFallbackName }: Props) 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this account?</AlertDialogTitle>
+            <AlertDialogTitle>{t("settings.accounts.removeTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleting?.display_name} will be removed. Existing messages keep their data.
+              {t("settings.accounts.removeBody", { name: deleting?.display_name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -182,6 +184,7 @@ function SortableAccountRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: account.id,
   });
@@ -207,7 +210,7 @@ function SortableAccountRow({
       <button
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={t("settings.brands.reorder")}
         className="text-muted-foreground hover:text-foreground"
       >
         <GripVertical className="h-4 w-4" />

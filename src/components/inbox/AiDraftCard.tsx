@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { toast } from "sonner";
+import { useT } from "@/i18n";
 
 export interface AiDraftRow {
   id: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function AiDraftCard({ draft, onUse, onChanged }: Props) {
+  const t = useT();
   const [busy, setBusy] = useState<"regen" | "discard" | null>(null);
 
   const isFailed = draft.status === "failed";
@@ -36,10 +38,10 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
     });
     setBusy(null);
     if (error) {
-      toast.error("Could not regenerate draft");
+      toast.error(t("inbox.aiDraft.regenFailed"));
       return;
     }
-    toast.success("New draft generated");
+    toast.success(t("inbox.aiDraft.regenOk"));
     onChanged();
   };
 
@@ -51,7 +53,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
       toast.error(error.message);
       return;
     }
-    toast.success("Draft discarded");
+    toast.success(t("inbox.aiDraft.discarded"));
     onChanged();
   };
 
@@ -61,11 +63,11 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
         <div className="flex items-center gap-2">
           <span className="flex h-5 items-center gap-1 rounded-full bg-primary/15 px-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
             <Sparkles className="h-3 w-3" />
-            AI Draft
+            {t("inbox.aiDraft.badge")}
           </span>
           {isFailed && (
             <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-medium text-destructive">
-              failed
+              {t("inbox.aiDraft.failed")}
             </span>
           )}
           <span className="text-[10px] text-muted-foreground">{draft.model_used}</span>
@@ -83,7 +85,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
             ) : (
               <RefreshCw className="mr-1 h-3 w-3" />
             )}
-            Regenerate
+            {t("inbox.aiDraft.regenerate")}
           </Button>
           <Button
             size="sm"
@@ -97,7 +99,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
             ) : (
               <Trash2 className="mr-1 h-3 w-3" />
             )}
-            Discard
+            {t("inbox.aiDraft.discard")}
           </Button>
           {!isFailed && !isPending && (
             <Button
@@ -106,7 +108,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
               onClick={() => onUse(draft)}
             >
               <Check className="mr-1 h-3 w-3" />
-              Use draft
+              {t("inbox.aiDraft.use")}
             </Button>
           )}
         </div>
@@ -114,7 +116,7 @@ export function AiDraftCard({ draft, onUse, onChanged }: Props) {
 
       {isFailed ? (
         <div className="text-xs text-destructive">
-          {draft.reasoning || "Generation failed. Try regenerate."}
+          {draft.reasoning || t("inbox.aiDraft.genFailed")}
         </div>
       ) : (
         <>
