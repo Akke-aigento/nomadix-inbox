@@ -210,6 +210,27 @@
   .email-body details.quoted[open] > summary {
     margin-bottom: 0.5rem;
   }
+
+  /* Een HTML-mail is vaak vastgezet op ~600px. Op een telefoon mag zo'n
+     bericht de layout niet breed duwen: het blok scrollt zelf zijwaarts en
+     de kaart eromheen blijft op schermbreedte. */
+  @media (max-width: 767px) {
+    .email-body,
+    .ProseMirror blockquote {
+      overflow-x: auto;
+      contain: content;
+      -webkit-overflow-scrolling: touch;
+    }
+    .email-body :is(img, table, pre, blockquote),
+    .ProseMirror blockquote :is(img, table, pre) {
+      max-width: 100%;
+    }
+    /* Geciteerd bericht in de opsteller: dichtgeklapt tot je het opvraagt.
+       Alleen verborgen, nooit verwijderd — het gaat gewoon mee in de mail. */
+    .quote-collapsed .ProseMirror blockquote {
+      display: none;
+    }
+  }
 }
 
 @layer utilities {

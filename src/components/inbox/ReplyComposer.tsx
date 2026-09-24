@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, X, Save, Loader2 } from "lucide-react";
+import { Send, X, Save, Loader2, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -172,6 +172,9 @@ export function ReplyComposer({
   const [bcc, setBcc] = useState<string[]>(() =>
     initialDraft?.bcc_addresses ? addressesToList(initialDraft.bcc_addresses) : [],
   );
+  // Bij een antwoord hoef je het origineel zelden te zien; bij doorsturen is
+  // het juist de inhoud, dus dan staat het open.
+  const [showQuote, setShowQuote] = useState<boolean>(mode === "forward");
   const [showCc, setShowCc] = useState<boolean>(cc.length > 0);
   const [showBcc, setShowBcc] = useState<boolean>(bcc.length > 0);
 
@@ -412,7 +415,7 @@ export function ReplyComposer({
     >
       <div
         className={cn(
-          "flex flex-none items-center gap-2 border-b border-border px-3 py-2",
+          "flex flex-none items-center gap-2 border-b border-border px-page py-2 md:px-3",
           fullscreen ? "pt-safe" : "justify-between",
         )}
       >
@@ -479,7 +482,7 @@ export function ReplyComposer({
         </div>
       </div>
 
-      <div className="flex flex-col gap-0.5 border-b border-border px-3 py-1.5 md:flex-row md:items-center md:gap-2">
+      <div className="flex flex-col gap-1.5 border-b border-border px-page py-2.5 md:flex-row md:items-center md:gap-2 md:px-3 md:py-1.5">
         <span className="text-xs font-medium text-muted-foreground md:w-12 md:flex-none">
           {t("inbox.composer.from")}
         </span>
@@ -542,7 +545,7 @@ export function ReplyComposer({
         />
       ) : null}
       {(!showCc || !showBcc) && (
-        <div className="flex justify-end gap-2 border-b border-border px-3 py-1 text-2xs">
+        <div className="flex justify-end gap-2 border-b border-border px-page py-1 text-2xs md:px-3">
           {!showCc && (
             <button
               onClick={() => setShowCc(true)}
@@ -562,7 +565,7 @@ export function ReplyComposer({
         </div>
       )}
 
-      <div className="flex flex-col gap-0.5 border-b border-border px-3 py-1.5 md:flex-row md:items-center md:gap-2">
+      <div className="flex flex-col gap-1.5 border-b border-border px-page py-2.5 md:flex-row md:items-center md:gap-2 md:px-3 md:py-1.5">
         <span className="text-xs font-medium text-muted-foreground md:w-12 md:flex-none">
           {t("inbox.composer.subject")}
         </span>
@@ -577,8 +580,28 @@ export function ReplyComposer({
         />
       </div>
 
-      <div className={cn("p-3", fullscreen && "min-h-0 flex-1 overflow-y-auto pb-safe")}>
+      {mode !== "forward" && (
+        <button
+          onClick={() => setShowQuote((v) => !v)}
+          className="flex min-h-touch items-center gap-1.5 border-b border-border px-page text-2xs text-muted-foreground md:hidden"
+        >
+          <ChevronRight
+            className={cn("h-3.5 w-3.5 transition-transform", showQuote && "rotate-90")}
+          />
+          {showQuote ? t("inbox.composer.hideQuoted") : t("inbox.composer.showQuoted")}
+        </button>
+      )}
+
+      <div
+        className={cn(
+          "min-w-0 p-page md:p-3",
+          fullscreen && "flex min-h-0 flex-1 flex-col overflow-x-hidden pb-safe",
+          // Onder md staat het citaat dichtgeklapt; het blok scrollt apart.
+          !showQuote && "quote-collapsed",
+        )}
+      >
         <ComposeEditor
+          fill={fullscreen}
           autoFocus
           onSubmit={() => {
             if (!sending) void handleSend();

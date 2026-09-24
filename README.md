@@ -53,6 +53,17 @@ van het gesprek, en hoogte én verschuiving volgen het zichtbare venster
 (`visualViewport`), zodat het toetsenbord de knoppen niet wegduwt. Verzenden en
 Weggooien staan in de vaste kop.
 
+Een geciteerd bericht staat op een telefoon dichtgeklapt achter "Geciteerd
+bericht tonen" (bij doorsturen niet — daar ís het de inhoud). Een HTML-mail
+mag de layout nooit breed duwen: `.email-body` en het citaat in de opsteller
+zijn eigen scrollblokken (`overflow-x: auto` + `contain: content`), zodat een
+nieuwsbrief van 640px zijwaarts scrollt binnen zijn eigen kader en de pagina
+op schermbreedte blijft.
+
+Zet geen `transform` op een element dat een scrollend vlak omsluit: iOS maakt
+daar een eigen rendercontext van en rastert de tekst één keer, wat tijdens het
+scrollen wazig oogt. De opsteller volgt het zichtbare venster daarom via `top`.
+
 Onder `md` staan de labels (Van/Aan/Cc/Bcc/Onderwerp) bóven hun veld en is elk
 invoerveld minstens 16px. Dat laatste is geen smaak: Safari zoomt het scherm in
 zodra je een veld met kleinere tekst aanraakt. Zet daarom nooit `text-sm` op een

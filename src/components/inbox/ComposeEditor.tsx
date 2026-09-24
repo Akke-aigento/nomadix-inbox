@@ -18,6 +18,9 @@ interface Props {
   autoFocus?: boolean;
   /** ⌘↩ / Ctrl+↩ */
   onSubmit?: () => void;
+  /** Vult de beschikbare hoogte; het schrijfvlak scrollt zelf. Voor de
+   *  schermvullende opsteller op een telefoon. */
+  fill?: boolean;
 }
 
 export function ComposeEditor({
@@ -27,6 +30,7 @@ export function ComposeEditor({
   minHeight = 200,
   autoFocus = false,
   onSubmit,
+  fill = false,
 }: Props) {
   const t = useT();
   const onSubmitRef = useRef(onSubmit);
@@ -124,8 +128,13 @@ export function ComposeEditor({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card">
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
+    <div
+      className={cn(
+        "rounded-lg border border-border bg-card",
+        fill && "flex h-full min-h-0 flex-col",
+      )}
+    >
+      <div className="flex flex-none flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
         <ToolbarBtn title={t("inbox.editor.bold")} onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}>
           <Bold className="h-3.5 w-3.5" />
         </ToolbarBtn>
@@ -150,7 +159,10 @@ export function ComposeEditor({
           <LinkIcon className="h-3.5 w-3.5" />
         </ToolbarBtn>
       </div>
-      <EditorContent editor={editor} />
+      <EditorContent
+        editor={editor}
+        className={cn(fill && "min-h-0 flex-1 overflow-y-auto")}
+      />
     </div>
   );
 }

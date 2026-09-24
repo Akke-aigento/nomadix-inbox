@@ -767,12 +767,14 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile: isMobileP
       {/* Mobiel: de opsteller vult het scherm en volgt het toetsenbord. */}
       {composerFullscreen && composer && (
         <div
-          className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background"
+          className="fixed inset-x-0 z-50 flex flex-col bg-background"
           style={{
             height: viewport ? `${viewport.height}px` : "100dvh",
-            // iOS verschuift het zichtbare venster als het toetsenbord opent of
-            // de gebruiker inzoomt; zonder dit staat de kop boven het scherm.
-            transform: viewport ? `translateY(${viewport.offsetTop}px)` : undefined,
+            // iOS verschuift het zichtbare venster als het toetsenbord opent.
+            // Via `top`, niet via transform: een transform maakt een eigen
+            // rendercontext en dan rastert iOS de tekst één keer — dat is de
+            // wazige tekst tijdens het scrollen.
+            top: viewport ? `${viewport.offsetTop}px` : 0,
           }}
         >
           <ReplyComposer
