@@ -1,51 +1,16 @@
-# Fix: Reply faalt met "Edge Function returned a non-2xx status code"
+# INBOX-5c — Veegacties omwisselen
 
-## Diagnose
-
-De `send-email` edge function crasht met **`CPU Time exceeded`** (bevestigd in de Supabase function logs, tijdstip matcht exact met jouw poging).
-
-**Root cause:** de `denomailer@1.6.0` library doet veel synchrone CPU-werk (MIME-bouw, quoted-printable/base64-encoding van de volledige HTML body inclusief alle geciteerde history, TLS handshake). Bij een reply op een thread met meerdere quote-niveaus tikt dit over de CPU-quota van Supabase Edge Functions heen.
-
-Dit is hetzelfde patroon dat we al hebben opgelost voor IMAP (`ImapFlow` → `imap-direct.ts`).
-
-## Aanpak
-
-Vervang `denomailer` door een lichte, directe SMTP-client (`smtp-direct.ts`) die via `Deno.connectTls` praat met `smtp.migadu.com:465`. Geen zware abstracties, alleen wat we nodig hebben:
-
-- TLS connect → `EHLO` → `AUTH LOGIN` → `MAIL FROM` → `RCPT TO` (per recipient) → `DATA` → message bytes → `.` → `QUIT`
-- Zelf de MIME-envelope bouwen: headers + `multipart/alternative` (text + html) zodat clients beide hebben
-- Body encoderen als `quoted-printable` (compact, geen base64-blowup)
-- Subject/from-name correct MIME-encoderen (UTF-8 `=?utf-8?B?...?=`) voor non-ASCII
-
-## Wijzigingen
-
-1. **Nieuw bestand**: `supabase/functions/_shared/smtp-direct.ts`
-   - `sendSmtpMail({ host, port, username, password, from, to, cc, bcc, subject, html, text, headers })`
-   - Gebruikt `Deno.connectTls` (poort 465) of `Deno.connect` + STARTTLS (poort 587)
-   - Streamt de DATA-fase regel voor regel (dot-stuffing) zodat grote bodies geen pieklast geven
-
-2. **Edit**: `supabase/functions/send-email/index.ts`
-   - Vervang `import { SMTPClient } from denomailer` door de nieuwe helper
-   - Verwijder de huidige `smtp.send(...)` + `smtp.close()` blokken
-   - Houd alle business-logica (threading headers, `messages` insert, draft cleanup, thread stats) ongewijzigd
-
-3. **Geen frontend-wijzigingen** nodig — de error wordt automatisch opgelost zodra de functie weer 200 teruggeeft.
-
-## Verificatie
-
-- Deploy `send-email`
-- Trigger een reply vanuit jouw UI (dezelfde thread)
-- Check edge function logs op `2xx` + bevestig dat de mail aankomt
-- Check `messages` tabel: nieuwe outbound row met `is_outbound = true`
+## Uitvoering
+- Wijzig de veegactie in de inboxrij: een verre veeg naar links activeert verwijderen; een korte veeg toont `Verwijderen` en `Meer`.
+- Gebruik voor verwijderen uitsluitend de bestaande `deleteThreads`-actie, zodat de optimistische verwijdering en 6-seconden-undo behouden blijven.
+- Toon tijdens een verre veeg naar links de destructieve achtergrond met prullenbakicoon; rechts blijft gelezen/ongelezen.
+- Verplaats Archiveren naar de eerste positie in het bestaande Meer-menu, gevolgd door Snoozen, Label en Dempen.
+- Werk de bestaande veegtests bij voor verwijderen, de onthulde acties en het ongewijzigde gedrag naar rechts; behoud alle huidige drempelwaarden.
 
 ## Technische details
+- Pas alleen de betrokken frontendbestanden aan: swipe-resolutie/hook, rij/list-props, inboxactiebedrading en bestaande tests.
+- Hergebruik bestaande vertalingen voor Verwijderen, Archiveren, Meer, Snoozen, Label en Dempen; voeg alleen NL/EN-sleutels toe als een ontbrekende toegankelijke tekst dat vereist.
+- Geen backendwijzigingen, migraties of aanpassingen aan andere schermen.
 
-- Migadu accepteert SMTP op `465` (implicit TLS) en `587` (STARTTLS). We respecteren wat in `email_accounts.smtp_port` staat.
-- Auth: `AUTH LOGIN` met base64-encoded username/password (zoals denomailer ook deed).
-- We blijven binnen Deno's ingebouwde TLS-stack — geen externe deps, geen npm-bundling.
-
-## Wat dit NIET aanraakt
-
-- Geen wijzigingen aan `sync-inbox`, `backfill-inbox` of cron-config
-- Geen RLS-/DB-migraties nodig
-- Geen secrets nodig — gebruikt al bestaande `get_email_account_password` RPC
+## Controle
+- Draai de gerichte swipe-unit- en componenttests en rapporteer de gewijzigde bestanden en teststatus.
