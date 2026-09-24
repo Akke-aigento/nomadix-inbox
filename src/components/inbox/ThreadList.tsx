@@ -1,12 +1,11 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search, Menu } from "lucide-react";
+import { Search } from "lucide-react";
 import { useBrandsQuery, type ThreadRow } from "@/hooks/useThreadsQuery";
 import { useT } from "@/i18n";
 import { viewDef } from "@/lib/views";
 import { ThreadRowItem, THREAD_ROW_HEIGHT, type Density } from "./ThreadRow";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useInboxFilters } from "@/hooks/useInboxFilters";
 import { EmptyInbox, NoResults } from "./EmptyStates";
 import { FilterChips } from "./FilterChips";
@@ -23,7 +22,16 @@ interface Props {
   onSelectThread: (id: string) => void;
   onToggleSelectId: (id: string) => void;
   onFocusIndex: (i: number) => void;
-  onOpenSidebar?: () => void;
+  /** Alleen op een telefoon: vegen, lang indrukken en de extra acties. */
+  touch?: {
+    selectionMode: boolean;
+    swipeOpenId: string | null;
+    onSwipeOpenChange: (id: string, open: boolean) => void;
+    onArchive: (id: string) => void;
+    onToggleRead: (id: string) => void;
+    onMore: (id: string) => void;
+    onLongPress: (id: string) => void;
+  };
 }
 
 export function ThreadList({
@@ -37,7 +45,7 @@ export function ThreadList({
   onSelectThread,
   onToggleSelectId,
   onFocusIndex,
-  onOpenSidebar,
+  touch,
 }: Props) {
   const { filters, update, activeChipCount } = useInboxFilters();
   const parentRef = useRef<HTMLDivElement>(null);
@@ -72,18 +80,7 @@ export function ThreadList({
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Search bar */}
-      <div className="flex h-14 items-center gap-2 border-b border-border px-3">
-        {onOpenSidebar && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 lg:hidden"
-            onClick={onOpenSidebar}
-            aria-label={t("inbox.list.openMenu")}
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-        )}
+      <div className="flex h-14 items-center gap-2 border-b border-border px-3 pt-safe">
         <div className="flex flex-1 items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
@@ -162,6 +159,14 @@ export function ThreadList({
                       onSelectThread(t.id);
                     }}
                     onToggleSelect={() => onToggleSelectId(t.id)}
+                    touch={!!touch}
+                    selectionMode={touch?.selectionMode ?? false}
+                    swipeOpen={touch?.swipeOpenId === t.id}
+                    onSwipeOpenChange={(open) => touch?.onSwipeOpenChange(t.id, open)}
+                    onArchive={() => touch?.onArchive(t.id)}
+                    onToggleRead={() => touch?.onToggleRead(t.id)}
+                    onMore={() => touch?.onMore(t.id)}
+                    onLongPress={() => touch?.onLongPress(t.id)}
                   />
                 </div>
               );

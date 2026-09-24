@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Nomadix</title>
+  <rect width="512" height="512" fill="#3b82f6"/>
+  <path fill="#ffffff" d="M178 350V162h47l78 114V162h47v188h-47l-78-114v114z"/>
+</svg>

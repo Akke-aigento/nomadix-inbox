@@ -4,7 +4,6 @@
 export const inboxNl = {
   // ── lijst + zoekbalk ────────────────────────────────────────────────
   "inbox.list.searchPlaceholder": "Zoek in mail…   ( / )",
-  "inbox.list.openMenu": "Menu openen",
 
   // ── rij in de lijst ─────────────────────────────────────────────────
   "inbox.row.yesterday": "Gisteren",
@@ -269,11 +268,27 @@ export const inboxNl = {
   "inbox.actions.deleteFailed": "Verwijderen mislukt: {error}",
   "inbox.actions.deleted": "{count} gesprek verwijderd|{count} gesprekken verwijderd",
   "inbox.sync.busy": "Sync al bezig — wacht tot deze klaar is",
+
+  // ── mobiel ──────────────────────────────────────────────────────────
+  "inbox.mobile.moreTitle": "Meer",
+  "inbox.mobile.views": "Weergaven",
+  "inbox.mobile.brands": "Merken",
+  "inbox.mobile.rules": "Regels",
+  "inbox.mobile.settings": "Instellingen",
+  "inbox.mobile.signOut": "Uitloggen",
+  "inbox.mobile.rowActions": "Acties voor dit gesprek",
+  "inbox.mobile.markUnread": "Markeer als ongelezen",
+  "inbox.mobile.selectionOn": "Selecteren",
+  "inbox.mobile.selectionOff": "Selectie stoppen",
+  "inbox.mobile.backToList": "Terug",
+  "inbox.mobile.threadActions": "Acties",
+  "inbox.mobile.composeTitle": "Opstellen",
+  "inbox.pwa.updateTitle": "Er staat een nieuwe versie klaar",
+  "inbox.pwa.updateAction": "Nu vernieuwen",
 } as const;
 
 export const inboxEn = {
   "inbox.list.searchPlaceholder": "Search mail…   ( / )",
-  "inbox.list.openMenu": "Open menu",
 
   "inbox.row.yesterday": "Yesterday",
   "inbox.row.unknown": "(Unknown)",
@@ -517,4 +532,20 @@ export const inboxEn = {
   "inbox.actions.deleteFailed": "Delete failed: {error}",
   "inbox.actions.deleted": "{count} thread deleted|{count} threads deleted",
   "inbox.sync.busy": "Sync already running — wait until it finishes",
+
+  "inbox.mobile.moreTitle": "More",
+  "inbox.mobile.views": "Views",
+  "inbox.mobile.brands": "Brands",
+  "inbox.mobile.rules": "Rules",
+  "inbox.mobile.settings": "Settings",
+  "inbox.mobile.signOut": "Sign out",
+  "inbox.mobile.rowActions": "Actions for this thread",
+  "inbox.mobile.markUnread": "Mark unread",
+  "inbox.mobile.selectionOn": "Select",
+  "inbox.mobile.selectionOff": "Stop selecting",
+  "inbox.mobile.backToList": "Back",
+  "inbox.mobile.threadActions": "Actions",
+  "inbox.mobile.composeTitle": "Compose",
+  "inbox.pwa.updateTitle": "A new version is ready",
+  "inbox.pwa.updateAction": "Refresh now",
 } satisfies Record<keyof typeof inboxNl, string>;

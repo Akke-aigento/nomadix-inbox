@@ -41,6 +41,24 @@ export async function unarchiveThreads(threadIds: string[], qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
 }
 
+/**
+ * Archiveren met een ongedaan-knop, voor gebaren waar je makkelijk naast
+ * grijpt (vegen). Archiveren is omkeerbaar, dus dit gaat meteen door; de
+ * knop zet het terug. Toont zijn eigen toast — geef er geen tweede bij.
+ */
+export async function archiveThreadsWithUndo(threadIds: string[], qc: QueryClient) {
+  if (!threadIds.length) return;
+  await archiveThreads(threadIds, qc);
+  toast(tr("inbox.bulk.archived", { count: threadIds.length }), {
+    action: {
+      label: tr("common.undo"),
+      onClick: () => {
+        void runAction(() => unarchiveThreads(threadIds, qc), tr("inbox.thread.unarchived"));
+      },
+    },
+  });
+}
+
 const DELETE_UNDO_MS = 6000;
 
 /**

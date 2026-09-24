@@ -21,6 +21,8 @@ const buttonVariants = cva(
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
+        // Vingermaat op een telefoon, muismaat vanaf md.
+        "icon-touch": "h-11 w-11 md:h-8 md:w-8",
       },
     },
     defaultVariants: {

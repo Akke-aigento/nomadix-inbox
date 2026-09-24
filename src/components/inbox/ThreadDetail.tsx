@@ -12,6 +12,9 @@ import {
   BellOff,
   Bell,
   ArchiveRestore,
+  MoreHorizontal,
+  Forward,
+  ReplyAll,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -37,6 +40,8 @@ import { SnoozePicker } from "./SnoozePicker";
 import { LabelPicker } from "./LabelPicker";
 import { AiDraftCard, type AiDraftRow } from "./AiDraftCard";
 import { useThreadLabels, useLabelsQuery, useSnoozeWakeupTick } from "@/hooks/useLabelsQuery";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useBackToClose, useVisualViewportHeight } from "@/hooks/useMobileOverlay";
 
 interface Props {
   threadId: string | null;
@@ -118,6 +123,13 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   const [composer, setComposer] = useState<ComposerState | null>(null);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [labelOpen, setLabelOpen] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
+
+  // Mobiel: de opsteller vult het scherm. De terugknop sluit hem, en de
+  // hoogte volgt het toetsenbord zodat Verzenden bereikbaar blijft.
+  const composerFullscreen = !!isMobile && !!composer;
+  const viewportHeight = useVisualViewportHeight(composerFullscreen);
+  useBackToClose(composerFullscreen, () => setComposer(null));
 
   // Auto-mark messages as read — once per opened thread, so marking it unread
   // again ("u") isn't undone by the refetch that follows.
@@ -145,6 +157,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
     setComposer(null);
     setSnoozeOpen(false);
     setLabelOpen(false);
+    setMobileMenu(false);
   }, [threadId]);
 
   // Newest first. Sorted again here because the optimistic sent message is
@@ -337,6 +350,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
   };
 
   const brandId = (data.thread as any).brand_id as string | null;
+  const brandInfo = data.thread.brand as { name: string; color_primary: string | null } | null;
   const isMuted = (data.thread as any).is_muted as boolean;
   const isArchived = (data.thread as any).is_archived as boolean;
   const snoozedUntil = (data.thread as any).snoozed_until as string | null;
@@ -358,15 +372,56 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {isMobile && onClose && (
-        <button
-          onClick={onClose}
-          className="flex h-10 flex-none items-center gap-1.5 border-b border-border bg-muted/30 px-3 text-xs font-medium text-muted-foreground transition hover:text-foreground"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          {t("inbox.thread.backToInbox")}
-        </button>
+      {isMobile && (
+        // Eén kop op een telefoon: terug · onderwerp · meer. De vroegere
+        // tweede balk ("Terug naar inbox") boven de kop is vervallen.
+        <header className="flex flex-none items-center gap-1 border-b border-border px-1 pt-safe">
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            onClick={onClose}
+            aria-label={t("inbox.mobile.backToList")}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0 flex-1 py-2">
+            <div className="truncate text-sm font-semibold">
+              {data.thread.subject || t("inbox.row.noSubject")}
+            </div>
+            <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+              {brandInfo && (
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 flex-none rounded-full"
+                    style={{ background: brandInfo.color_primary ?? undefined }}
+                  />
+                  {brandInfo.name}
+                </span>
+              )}
+              {isMuted && (
+                <span className="flex items-center gap-1">
+                  <BellOff className="h-2.5 w-2.5" /> {t("inbox.thread.muted")}
+                </span>
+              )}
+              {appliedLabels.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Tag className="h-2.5 w-2.5" />
+                  {appliedLabels.map((l) => l.name).join(", ")}
+                </span>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            onClick={() => setMobileMenu(true)}
+            aria-label={t("inbox.mobile.threadActions")}
+          >
+            <MoreHorizontal className="h-5 w-5" />
+          </Button>
+        </header>
       )}
+      {!isMobile && (
       <header className="flex h-14 flex-none items-center gap-2 border-b border-border px-4">
         {onClose && !isMobile && (
           <Button variant="ghost" size="icon" className="h-8 w-8 lg:hidden" onClick={onClose}>
@@ -453,6 +508,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           <Trash2 className="h-4 w-4" />
         </Button>
       </header>
+      )}
 
       {/* Keyboard-controlled snooze popover (anchored to header clock icon area) */}
       {snoozeOpen && (
@@ -497,7 +553,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {/* Decision A: everything you act on sits on top — composer, AI draft,
             resumable draft — followed by the messages, newest first. */}
-        {composer && (
+        {composer && !composerFullscreen && (
           <div className="mb-3">
             <ReplyComposer
               key={`${composer.parent.id}:${composer.mode}:${composer.draftId ?? "new"}`}
@@ -582,6 +638,140 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile }: Props) 
           ))}
         </div>
       </div>
+
+      {/* Mobiel: de acties die je het vaakst nodig hebt, onder je duim. */}
+      {isMobile && !composer && (
+        <div className="flex flex-none items-center gap-1 border-t border-border px-2 py-1.5 pb-safe">
+          {replyParent && (
+            <Button className="min-h-touch flex-1" onClick={() => openComposer("reply", replyParent)}>
+              <Reply className="mr-1.5 h-4 w-4" /> {t("inbox.thread.reply")}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            onClick={() => setSnoozeOpen(true)}
+            aria-label={t("inbox.thread.snooze")}
+          >
+            <Clock className="h-5 w-5" />
+          </Button>
+          {isArchived ? (
+            <Button
+              variant="ghost"
+              size="icon-touch"
+              onClick={handleUnarchive}
+              aria-label={t("inbox.thread.unarchive")}
+            >
+              <ArchiveRestore className="h-5 w-5" />
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-touch"
+              onClick={handleArchive}
+              aria-label={t("inbox.thread.archive")}
+            >
+              <Archive className="h-5 w-5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            onClick={handleDelete}
+            aria-label={t("inbox.thread.delete")}
+          >
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
+
+      {/* Mobiel: de rest van de acties achter "meer". */}
+      <Sheet open={mobileMenu} onOpenChange={setMobileMenu}>
+        <SheetContent side="bottom" className="pb-safe">
+          <SheetHeader className="text-left">
+            <SheetTitle>{t("inbox.mobile.threadActions")}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-2 flex flex-col">
+            {replyParent && (
+              <>
+                <button
+                  className="flex min-h-touch items-center gap-3 px-2 text-sm"
+                  onClick={() => {
+                    setMobileMenu(false);
+                    openComposer("replyAll", replyParent);
+                  }}
+                >
+                  <ReplyAll className="h-4 w-4" /> {t("inbox.composer.replyAll")}
+                </button>
+                <button
+                  className="flex min-h-touch items-center gap-3 px-2 text-sm"
+                  onClick={() => {
+                    setMobileMenu(false);
+                    openComposer("forward", replyParent);
+                  }}
+                >
+                  <Forward className="h-4 w-4" /> {t("inbox.composer.forward")}
+                </button>
+              </>
+            )}
+            <button
+              className="flex min-h-touch items-center gap-3 px-2 text-sm"
+              onClick={() => {
+                setMobileMenu(false);
+                setLabelOpen(true);
+              }}
+            >
+              <Tag className="h-4 w-4" /> {t("inbox.thread.labels")}
+            </button>
+            <button
+              className="flex min-h-touch items-center gap-3 px-2 text-sm"
+              onClick={() => {
+                setMobileMenu(false);
+                void toggleMute();
+              }}
+            >
+              {isMuted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+              {isMuted ? t("inbox.thread.unmute") : t("inbox.thread.mute")}
+            </button>
+            <button
+              className="flex min-h-touch items-center gap-3 px-2 text-sm"
+              onClick={() => {
+                setMobileMenu(false);
+                void handleToggleRead();
+              }}
+            >
+              {data.messages.some((m) => !m.is_read) ? (
+                <MailOpen className="h-4 w-4" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              {t("inbox.thread.toggleRead")}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Mobiel: de opsteller vult het scherm en volgt het toetsenbord. */}
+      {composerFullscreen && composer && (
+        <div
+          className="fixed inset-x-0 top-0 z-50 flex flex-col bg-background"
+          style={{ height: viewportHeight ? `${viewportHeight}px` : "100dvh" }}
+        >
+          <ReplyComposer
+            key={`${composer.parent.id}:${composer.mode}:${composer.draftId ?? "new"}`}
+            threadId={threadId}
+            brandId={brandId}
+            parentMessage={composer.parent}
+            mode={composer.mode}
+            draftId={composer.draftId}
+            initialDraft={composer.initialDraft}
+            aiSeed={composer.aiSeed}
+            fullscreen
+            onCancel={() => setComposer(null)}
+            onSent={handleSent}
+          />
+        </div>
+      )}
     </div>
   );
 }

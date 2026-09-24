@@ -1,10 +1,21 @@
 import { memo } from "react";
-import { Paperclip, AlertTriangle, MessageSquareReply, Sparkles, Bot } from "lucide-react";
+import {
+  Paperclip,
+  AlertTriangle,
+  MessageSquareReply,
+  Sparkles,
+  Archive,
+  Mail,
+  MailOpen,
+  MoreHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ThreadRow } from "@/hooks/useThreadsQuery";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n, useT } from "@/i18n";
 import { fmtListTime } from "@/i18n/format";
+import { useSwipeRow, SWIPE_OPEN_WIDTH } from "@/hooks/useSwipeRow";
+import { useLongPress } from "@/hooks/useLongPress";
 
 // Density woont in lib/density (gedeeld met Instellingen > Voorkeuren).
 export type { Density } from "@/lib/density";
@@ -21,14 +32,15 @@ function senderName(thread: ThreadRow, unknown: string): string {
   if (m?.from_name) return m.from_name;
   if (m?.from_address) return m.from_address.split("@")[0];
   if (Array.isArray(thread.participants) && thread.participants[0])
-    return String(thread.participants[0]).replace(/<.*>/, "").trim() || String(thread.participants[0]);
+    return (
+      String(thread.participants[0]).replace(/<.*>/, "").trim() ||
+      String(thread.participants[0])
+    );
   return unknown;
 }
 
 function prettyCategory(slug: string): string {
-  return slug
-    .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface Props {
@@ -41,7 +53,19 @@ interface Props {
   onClick: () => void;
   onToggleSelect: () => void;
   style?: React.CSSProperties;
+  /** Mobiel: vegen en lang indrukken. Op desktop staat dit uit. */
+  touch?: boolean;
+  /** Selectiemodus: de checkbox staat altijd zichtbaar (geen hover op touch). */
+  selectionMode?: boolean;
+  swipeOpen?: boolean;
+  onSwipeOpenChange?: (open: boolean) => void;
+  onArchive?: () => void;
+  onToggleRead?: () => void;
+  onMore?: () => void;
+  onLongPress?: () => void;
 }
+
+const NOOP = () => {};
 
 function ThreadRowImpl({
   thread,
@@ -53,6 +77,14 @@ function ThreadRowImpl({
   onClick,
   onToggleSelect,
   style,
+  touch = false,
+  selectionMode = false,
+  swipeOpen = false,
+  onSwipeOpenChange = NOOP,
+  onArchive = NOOP,
+  onToggleRead = NOOP,
+  onMore = NOOP,
+  onLongPress = NOOP,
 }: Props) {
   const accent = thread.brand?.color_primary || "hsl(var(--muted-foreground))";
   const m = thread.latest_message;
@@ -69,159 +101,296 @@ function ThreadRowImpl({
   const needsReply = !!m?.needs_reply;
   const showChips = density !== "dense";
 
+  const swipe = useSwipeRow({
+    enabled: touch && !selectionMode,
+    open: swipeOpen,
+    onOpenChange: onSwipeOpenChange,
+    onArchive,
+    onToggleRead,
+  });
+  const longPress = useLongPress(touch && !selectionMode, onLongPress);
+
+  // Vegen en lang indrukken delen dezelfde touch-events.
+  const bind = touch
+    ? {
+        onTouchStart: (e: React.TouchEvent) => {
+          swipe.bind.onTouchStart(e);
+          longPress.onTouchStart(e);
+        },
+        onTouchMove: (e: React.TouchEvent) => {
+          swipe.bind.onTouchMove(e);
+          longPress.onTouchMove(e);
+        },
+        onTouchEnd: () => {
+          swipe.bind.onTouchEnd();
+          longPress.onTouchEnd();
+        },
+        onTouchCancel: () => {
+          swipe.bind.onTouchCancel();
+          longPress.onTouchCancel();
+        },
+      }
+    : {};
+
+  const handleClick = () => {
+    // Staat het knoppenvlak open, dan sluit de eerste tik het weer.
+    if (swipeOpen) {
+      onSwipeOpenChange(false);
+      return;
+    }
+    if (selectionMode) {
+      onToggleSelect();
+      return;
+    }
+    onClick();
+  };
+
+  const showSwipeLayer =
+    touch && (swipeOpen || swipe.dragging || swipe.offset !== 0);
+  const committing =
+    swipe.pending === "archive" || swipe.pending === "toggleRead";
+
   return (
     <div
       style={{ ...style, height: HEIGHT[density] }}
-      onClick={onClick}
-      className={cn(
-        "group relative flex cursor-pointer items-center gap-3 border-b border-border/50 pl-3 pr-4 transition-colors",
-        active ? "bg-primary/5" : "hover:bg-muted/40",
-        focused && !active && "ring-1 ring-inset ring-primary/40",
-        density === "comfortable" ? "py-2" : density === "compact" ? "py-1.5" : "py-1",
-      )}
+      className="relative overflow-hidden bg-background"
     >
-      {/* Brand color bar */}
-      <span
-        className={cn(
-          "absolute left-0 top-0 h-full w-[3px]",
-          active ? "opacity-100" : isUnread ? "opacity-90" : "opacity-50",
-        )}
-        style={{ background: accent }}
-      />
-      {/* Unread tint */}
-      {isUnread && !active && (
-        <span
-          className="pointer-events-none absolute inset-0"
-          style={{ background: `${accent}10` }}
-        />
+      {showSwipeLayer && (
+        <div
+          aria-hidden
+          className={cn(
+            "absolute inset-0 flex items-center justify-between px-4 text-xs font-medium",
+            committing
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground",
+          )}
+        >
+          <span className="flex items-center gap-1.5">
+            {isUnread ? (
+              <MailOpen className="h-4 w-4" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            {isUnread ? t("inbox.bulk.markRead") : t("inbox.mobile.markUnread")}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Archive className="h-4 w-4" />
+            {t("inbox.bulk.archive")}
+          </span>
+        </div>
       )}
-
-      {/* Checkbox */}
+      {touch && swipeOpen && !swipe.dragging && (
+        <div
+          className="absolute right-0 top-0 flex h-full"
+          style={{ width: SWIPE_OPEN_WIDTH }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSwipeOpenChange(false);
+              onArchive();
+            }}
+            className="flex flex-1 flex-col items-center justify-center gap-1 bg-primary text-[11px] font-medium text-primary-foreground"
+          >
+            <Archive className="h-5 w-5" />
+            {t("inbox.bulk.archive")}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMore();
+            }}
+            className="flex flex-1 flex-col items-center justify-center gap-1 bg-surface-3 text-[11px] font-medium text-foreground"
+          >
+            <MoreHorizontal className="h-5 w-5" />
+            {t("common.more")}
+          </button>
+        </div>
+      )}
       <div
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleSelect();
+        onClick={handleClick}
+        {...bind}
+        style={{
+          transform: touch ? `translateX(${swipe.offset}px)` : undefined,
+          transition:
+            touch && !swipe.dragging
+              ? "transform var(--dur-base) var(--ease-smooth)"
+              : undefined,
+          touchAction: touch ? "pan-y" : undefined,
         }}
         className={cn(
-          "z-10 flex h-5 w-5 flex-none items-center justify-center",
-          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          "group relative flex h-full cursor-pointer items-center gap-3 border-b border-border/50 bg-background pl-3 pr-4 transition-colors",
+          active ? "bg-primary/5" : "hover:bg-muted/40",
+          focused && !active && "ring-1 ring-inset ring-primary/40",
+          density === "comfortable"
+            ? "py-2"
+            : density === "compact"
+              ? "py-1.5"
+              : "py-1",
         )}
       >
-        <Checkbox checked={selected} onCheckedChange={onToggleSelect} aria-label={t("inbox.row.select")} />
-      </div>
+        {/* Brand color bar */}
+        <span
+          className={cn(
+            "absolute left-0 top-0 h-full w-[3px]",
+            active ? "opacity-100" : isUnread ? "opacity-90" : "opacity-50",
+          )}
+          style={{ background: accent }}
+        />
+        {/* Unread tint */}
+        {isUnread && !active && (
+          <span
+            className="pointer-events-none absolute inset-0"
+            style={{ background: `${accent}10` }}
+          />
+        )}
 
-      {/* Content */}
-      <div className="z-10 flex min-w-0 flex-1 flex-col justify-center">
-        {density === "dense" ? (
-          <div className="flex items-center gap-2 text-sm">
-            {thread.brand && (
-              <span
-                className="flex-none rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                style={{ background: `${accent}22`, color: accent }}
-              >
-                {thread.brand.name}
-              </span>
-            )}
-            <span
-              className={cn(
-                "min-w-0 max-w-[140px] truncate",
-                isUnread ? "font-semibold" : "text-muted-foreground",
-              )}
-            >
-              {senderName(thread, t("inbox.row.unknown"))}
-            </span>
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate",
-                isUnread ? "font-medium text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {thread.subject || t("inbox.row.noSubject")}
-            </span>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "min-w-0 truncate text-sm",
-                  isUnread ? "font-semibold text-foreground" : "text-foreground/90",
-                  density === "comfortable" ? "max-w-[180px]" : "max-w-[140px]",
-                )}
-              >
-                {senderName(thread, t("inbox.row.unknown"))}
-              </span>
-              {thread.message_count > 1 && (
-                <span className="rounded-sm bg-muted/60 px-1 text-[10px] text-muted-foreground">
-                  {thread.message_count}
+        {/* Checkbox */}
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          className={cn(
+            // Geen hover op een telefoon: in de selectiemodus staat hij vast aan.
+            "z-10 flex flex-none items-center justify-center",
+            touch ? "-my-2 -ml-1 h-11 w-11" : "h-5 w-5",
+            selected || selectionMode
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100",
+            !selectionMode && touch && "hidden",
+          )}
+        >
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggleSelect}
+            aria-label={t("inbox.row.select")}
+          />
+        </div>
+
+        {/* Content */}
+        <div className="z-10 flex min-w-0 flex-1 flex-col justify-center">
+          {density === "dense" ? (
+            <div className="flex items-center gap-2 text-sm">
+              {thread.brand && (
+                <span
+                  className="flex-none rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                  style={{ background: `${accent}22`, color: accent }}
+                >
+                  {thread.brand.name}
                 </span>
               )}
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-sm",
-                  isUnread ? "font-medium text-foreground" : "text-foreground/80",
+                  "min-w-0 max-w-[140px] truncate",
+                  isUnread ? "font-semibold" : "text-muted-foreground",
+                )}
+              >
+                {senderName(thread, t("inbox.row.unknown"))}
+              </span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  isUnread
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground",
                 )}
               >
                 {thread.subject || t("inbox.row.noSubject")}
               </span>
             </div>
-
-            {/* Chips row: brand + category + urgency + needs-reply */}
-            {showChips && (
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                {thread.brand && (
-                  <span
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                    style={{ background: `${accent}22`, color: accent }}
-                  >
-                    <span
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: accent }}
-                    />
-                    {thread.brand.name}
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "min-w-0 truncate text-sm",
+                    isUnread
+                      ? "font-semibold text-foreground"
+                      : "text-foreground/90",
+                    density === "comfortable"
+                      ? "max-w-[180px]"
+                      : "max-w-[140px]",
+                  )}
+                >
+                  {senderName(thread, t("inbox.row.unknown"))}
+                </span>
+                {thread.message_count > 1 && (
+                  <span className="rounded-sm bg-muted/60 px-1 text-[10px] text-muted-foreground">
+                    {thread.message_count}
                   </span>
                 )}
-                {m?.ai_category && (
-                  <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
-                    <Sparkles className="h-2.5 w-2.5 text-muted-foreground" />
-                    {prettyCategory(m.ai_category)}
-                  </span>
-                )}
-                {isUrgent && (
-                  <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
-                    <AlertTriangle className="h-2.5 w-2.5" />
-                    {t("inbox.row.urgent")}
-                  </span>
-                )}
-                {needsReply && (
-                  <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    <MessageSquareReply className="h-2.5 w-2.5" />
-                    {t("inbox.row.reply")}
-                  </span>
-                )}
-                {density === "comfortable" && preview && (
-                  <span className="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                    · {preview}
-                  </span>
-                )}
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-sm",
+                    isUnread
+                      ? "font-medium text-foreground"
+                      : "text-foreground/80",
+                  )}
+                >
+                  {thread.subject || t("inbox.row.noSubject")}
+                </span>
               </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {/* Right: indicators + time */}
-      <div className="z-10 flex flex-none flex-col items-end justify-center gap-0.5">
-        <span
-          className={cn(
-            "text-[11px]",
-            isUnread ? "font-medium text-foreground" : "text-muted-foreground",
+              {/* Chips row: brand + category + urgency + needs-reply */}
+              {showChips && (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {thread.brand && (
+                    <span
+                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ background: `${accent}22`, color: accent }}
+                    >
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: accent }}
+                      />
+                      {thread.brand.name}
+                    </span>
+                  )}
+                  {m?.ai_category && (
+                    <span className="flex items-center gap-1 rounded bg-muted/70 px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
+                      <Sparkles className="h-2.5 w-2.5 text-muted-foreground" />
+                      {prettyCategory(m.ai_category)}
+                    </span>
+                  )}
+                  {isUrgent && (
+                    <span className="flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      {t("inbox.row.urgent")}
+                    </span>
+                  )}
+                  {needsReply && (
+                    <span className="flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      <MessageSquareReply className="h-2.5 w-2.5" />
+                      {t("inbox.row.reply")}
+                    </span>
+                  )}
+                  {density === "comfortable" && preview && (
+                    <span className="ml-1 min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      · {preview}
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
           )}
-        >
-          {time}
-        </span>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          {thread.has_attachments && <Paperclip className="h-3 w-3" />}
+        </div>
+
+        {/* Right: indicators + time */}
+        <div className="z-10 flex flex-none flex-col items-end justify-center gap-0.5">
+          <span
+            className={cn(
+              "text-[11px]",
+              isUnread
+                ? "font-medium text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            {time}
+          </span>
+          <div className="flex items-center gap-1 text-muted-foreground">
+            {thread.has_attachments && <Paperclip className="h-3 w-3" />}
+          </div>
         </div>
       </div>
     </div>
