@@ -53,6 +53,15 @@ van het gesprek, en hoogte én verschuiving volgen het zichtbare venster
 (`visualViewport`), zodat het toetsenbord de knoppen niet wegduwt. Verzenden en
 Weggooien staan in de vaste kop.
 
+Een HTML-mail die op 600-640px is opgemaakt wordt op een telefoon **verkleind
+tot hij past** (`useFitToWidth`), precies zoals Gmail en Apple Mail dat doen:
+de opmaak blijft heel, alleen kleiner, en met je vingers zoom je in. Daarom
+staat `user-scalable` nergens uit, en daarom worden tabellen in een mail
+bewust *niet* op `max-width: 100%` gezet — dan zou de opmaak verschuiven in
+plaats van meeschalen. Past hij zelfs op 40% niet, dan scrollt dat ene blok
+zijwaarts. De verkleining gebruikt `zoom`, geen `transform: scale()`: een
+transform rastert de tekst één keer en oogt wazig.
+
 Een geciteerd bericht staat op een telefoon dichtgeklapt achter "Geciteerd
 bericht tonen" (bij doorsturen niet — daar ís het de inhoud). Een HTML-mail
 mag de layout nooit breed duwen: `.email-body` en het citaat in de opsteller

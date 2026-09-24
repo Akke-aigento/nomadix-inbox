@@ -563,7 +563,7 @@ export function ThreadDetail({ threadId, onClose, onAdvance, isMobile: isMobileP
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-3 md:px-4 md:py-4">
         {/* Decision A: everything you act on sits on top — composer, AI draft,
             resumable draft — followed by the messages, newest first. */}
         {composer && !composerFullscreen && (

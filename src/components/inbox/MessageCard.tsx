@@ -8,6 +8,8 @@ import { sanitizeEmailHtml } from "@/lib/sanitize";
 import { AttachmentList, type AttachmentRow } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
 import { foldQuotedHtml, previewText } from "@/lib/thread-view";
+import { useFitToWidth } from "@/hooks/useFitToWidth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { ComposeMode } from "./ReplyComposer";
 
 export interface MessageRecord {
@@ -59,6 +61,12 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
   }, [message.body_html, message.body_text, t]);
 
   // Outbound messages have no body_text: preview from the HTML instead.
+  // Een mail die op 600-640px is opgemaakt past niet op een telefoon. In
+  // plaats van hem zijwaarts te laten slepen, verkleinen we hem tot hij past
+  // — dezelfde keuze die Gmail en Apple Mail maken.
+  const isMobile = useIsMobile();
+  const fit = useFitToWidth<HTMLDivElement>(isMobile && expanded, html);
+
   const previewLine = useMemo(
     () => previewText(message.body_text, message.body_html),
     [message.body_text, message.body_html],
@@ -122,11 +130,19 @@ export function MessageCard({ message, attachments, brandName, expanded, onToggl
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4">
+        // Onder md loopt het bericht tot de rand van de kaart: elke pixel
+        // breedte scheelt in hoe klein de mail geschaald moet worden.
+        <div className="px-2 pb-4 md:px-4">
           <div
+            ref={fit.ref}
             className="email-body prose prose-sm prose-invert max-w-none text-sm"
             dangerouslySetInnerHTML={{ __html: html }}
           />
+          {fit.scale < 1 && (
+            <div className="mt-1 text-2xs text-muted-foreground md:hidden">
+              {t("inbox.message.fitted", { percent: Math.round(fit.scale * 100) })}
+            </div>
+          )}
           <AttachmentList attachments={attachments} />
           {onCompose && (
             <div className="mt-4 flex gap-2 border-t border-border/60 pt-3">

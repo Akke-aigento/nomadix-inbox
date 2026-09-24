@@ -122,6 +122,7 @@ export const inboxNl = {
   "inbox.message.replyAll": "Allen antwoorden",
   "inbox.message.forward": "Doorsturen",
   "inbox.message.showQuoted": "Geciteerde tekst tonen",
+  "inbox.message.fitted": "Op schermbreedte gebracht ({percent}%) — knijp om in te zoomen",
   "inbox.message.sent": "Verzonden",
 
   // ── opstellen ───────────────────────────────────────────────────────
@@ -401,6 +402,7 @@ export const inboxEn = {
   "inbox.message.replyAll": "Reply all",
   "inbox.message.forward": "Forward",
   "inbox.message.showQuoted": "Show quoted text",
+  "inbox.message.fitted": "Scaled to fit ({percent}%) — pinch to zoom in",
   "inbox.message.sent": "Sent",
 
   "inbox.composer.reply": "Reply",

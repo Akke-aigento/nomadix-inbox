@@ -211,9 +211,10 @@
     margin-bottom: 0.5rem;
   }
 
-  /* Een HTML-mail is vaak vastgezet op ~600px. Op een telefoon mag zo'n
-     bericht de layout niet breed duwen: het blok scrollt zelf zijwaarts en
-     de kaart eromheen blijft op schermbreedte. */
+  /* Een HTML-mail is vaak vastgezet op ~600px. Op een telefoon wordt hij
+     verkleind tot hij past (useFitToWidth, net als Gmail en Apple Mail). Past
+     hij ook op de kleinste schaal niet, dan scrollt dít blok zijwaarts — de
+     kaart eromheen blijft hoe dan ook op schermbreedte. */
   @media (max-width: 767px) {
     .email-body,
     .ProseMirror blockquote {
@@ -221,8 +222,11 @@
       contain: content;
       -webkit-overflow-scrolling: touch;
     }
-    .email-body :is(img, table, pre, blockquote),
-    .ProseMirror blockquote :is(img, table, pre) {
+    /* Tabellen bewust NIET begrenzen: een mail die op 640px is opgemaakt moet
+       zijn vorm houden en als geheel verkleind worden. Knijp je de tabel in
+       plaats daarvan samen, dan verschuift de hele opmaak. */
+    .email-body :is(img, pre, blockquote),
+    .ProseMirror blockquote :is(img, pre) {
       max-width: 100%;
     }
     /* Geciteerd bericht in de opsteller: dichtgeklapt tot je het opvraagt.
