@@ -56,7 +56,9 @@ Deno.serve(async (req) => {
   {
     const { data, error } = await supabase
       .from("email_accounts")
-      .select("label, last_sync_at, last_sync_status, last_sync_error");
+      .select("label, last_sync_at, last_sync_status, last_sync_error")
+      // Alleen accounts die effectief synchroniseren; verzend-only accounts staan op false.
+      .eq("sync_enabled", true);
 
     if (error) {
       checks.push({ key: "mail_sync", status: "fail", detail: { error: error.message } });
@@ -168,6 +170,7 @@ Deno.serve(async (req) => {
 
   return json({
     status: worst(checks.map((c) => c.status)),
+    v: "health-2",
     generated_at: new Date(now).toISOString(),
     checks,
   });
